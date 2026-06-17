@@ -21,6 +21,43 @@ body {
   font-family: var(--font-sans);
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s ease-out;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.hero-section {
+  min-height: clamp(360px, 56vh, 560px);
+}
+
+.hero-image {
+  object-position: 72% center;
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    min-height: 420px;
+  }
+
+  .hero-image {
+    object-position: 78% center;
+  }
+}
+
 .print-only {
   display: none;
 }

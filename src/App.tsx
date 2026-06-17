@@ -18,24 +18,22 @@ import MultiAlignmentVisualizer from "./components/MultiAlignmentVisualizer";
 import TimelineMilestone from "./components/TimelineMilestone";
 import CounselingRoom from "./components/CounselingRoom";
 import ProfileSaveLoad from "./components/ProfileSaveLoad";
+import AppHeader from "./components/layout/AppHeader";
+import HeroSection from "./components/layout/HeroSection";
+import StepNav from "./components/layout/StepNav";
+import AppFooter from "./components/layout/AppFooter";
+import { AppTab } from "./types/layout";
 import {
-  Sparkles,
   Compass,
-  Layers,
-  Calendar,
-  BookOpen,
-  User,
   Heart,
   HelpCircle,
-  Cpu,
   Bookmark,
-  ChevronRight,
   ArrowRight,
   RefreshCw,
 } from "lucide-react";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"input" | "alignment" | "timeline" | "report">("input");
+  const [activeTab, setActiveTab] = useState<AppTab>("input");
   
   // Set up deterministic initial dates & calculate profiles
   const [fortuneData, setFortuneData] = useState<AllFortuneData>(() => {
@@ -202,6 +200,10 @@ export default function App() {
     }));
   };
 
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   // Submit report synthesis request to endpoint
   const handleSynthesizeDestiny = async () => {
     setLoading(true);
@@ -225,6 +227,7 @@ export default function App() {
       setReport(resJson.report);
       setChatHistory([createWelcomeChatMessage()]);
       setActiveTab("report");
+      setTimeout(() => scrollTo("tab-panels-viewport"), 80);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "ネットワークに接続できませんでした。");
@@ -248,107 +251,35 @@ export default function App() {
     canDownload: Boolean(report),
   };
 
+  const handleStartAppraisal = () => {
+    setActiveTab("input");
+    setTimeout(() => scrollTo("tab-panels-viewport"), 80);
+  };
+
+  const handleViewFlow = () => {
+    scrollTo("step-nav");
+  };
+
+  const handleTabChange = (tab: AppTab) => {
+    setActiveTab(tab);
+    setTimeout(() => scrollTo("tab-panels-viewport"), 80);
+  };
+
   return (
     <div className="min-h-screen bg-natural-bg text-natural-text flex flex-col font-sans select-none antialiased selection:bg-natural-olive/20 selection:text-natural-text" id="app-root-container">
-      
-      {/* Mystic Top Navigation header */}
-      <header className="no-print sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-natural-border px-6 py-4 flex items-center justify-between shadow-sm" id="app-header">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-natural-olive rounded-xl flex items-center justify-center text-white shadow-md shadow-natural-olive/10">
-            <Compass className="w-5 h-5 animate-spin-slow" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold tracking-wider font-serif text-natural-olive">
-              ASTRIA <span className="font-sans font-normal text-xs text-neutral-500">| 統合鑑定システム</span>
-            </h1>
-            <p className="text-[10px] text-neutral-500 mt-0.5">
-              四柱推命・ジョーティシュ・西洋占星術・数秘術アライメント
-            </p>
-          </div>
-        </div>
+      <AppHeader />
 
-        {/* Integration Status Indicator */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-natural-light-cream border border-natural-border rounded-lg text-[10px] text-natural-olive font-bold uppercase tracking-wider">
-          <Cpu className="w-3.5 h-3.5" />
-          <span>四星統合エンジン 安定稼働</span>
-        </div>
-      </header>
+      <HeroSection onStart={handleStartAppraisal} onViewFlow={handleViewFlow} />
 
-      {/* Main Body */}
+      <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
+        <StepNav
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          reportReady={Boolean(report)}
+        />
+      </div>
+
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-6 py-8 space-y-8 select-text">
-        
-        {/* Banner Intro explaining logic */}
-        <div className="no-print bg-gradient-to-br from-natural-olive to-natural-olive-dark text-white p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-md">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10 max-w-3xl space-y-2.5">
-            <span className="text-[10px] font-bold text-natural-cream bg-white/10 px-2.5 py-1 border border-white/10 rounded-full tracking-widest uppercase">
-              Syncretic Destiny Matrix
-            </span>
-            <h2 className="text-xl md:text-2xl font-normal tracking-tight font-serif text-white/95">
-              東洋・西洋の命運データベースを架橋する、究極の統合鑑定
-            </h2>
-            <p className="text-xs md:text-sm text-neutral-200 leading-relaxed font-sans mt-2">
-              「四柱推命」「インド占星術」「西洋占星術」「数秘術」
-              それぞれ全く異なる起源を持つ4つの占術エンジンに、あなたの出生情報を同時インプット。
-              命運の重なる『収束地帯』を検出し、過去の出来事（バックテスト）に潜む星のトリガーを立証。
-              最後はAIによるプロンプト鑑定スタイルを徹底厳守し、目の前の課題を突破する『現実的処方』を提示します。
-            </p>
-          </div>
-        </div>
-
-        {/* Dynamic Interactive Navigation Tabs */}
-        <div className="no-print flex border-b border-natural-border text-xs font-semibold overflow-x-auto gap-2" id="nav-tabs">
-          <button
-            onClick={() => setActiveTab("input")}
-            className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all shrink-0 uppercase tracking-wider ${
-              activeTab === "input"
-                ? "border-natural-olive text-natural-olive font-semibold"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            <User className="w-4 h-4" /> 1. 基本設定 ＆ 占術カルテ
-          </button>
-          
-          <button
-            onClick={() => setActiveTab("alignment")}
-            className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all shrink-0 uppercase tracking-wider ${
-              activeTab === "alignment"
-                ? "border-natural-olive text-natural-olive font-semibold"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            <Layers className="w-4 h-4" /> 2. 収束アライメント
-          </button>
-
-          <button
-            onClick={() => setActiveTab("timeline")}
-            className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all shrink-0 uppercase tracking-wider ${
-              activeTab === "timeline"
-                ? "border-natural-olive text-natural-olive font-semibold"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            <Calendar className="w-4 h-4" /> 3. 流年時間割
-          </button>
-
-          <button
-            onClick={() => {
-              if (report) setActiveTab("report");
-            }}
-            disabled={!report}
-            className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition-all shrink-0 uppercase tracking-wider ${
-              !report
-                ? "opacity-40 cursor-not-allowed border-transparent text-neutral-400"
-                : activeTab === "report"
-                ? "border-natural-olive text-natural-olive font-semibold"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            <BookOpen className="w-4 h-4" /> 4. 統合鑑定書 ＆ 相談
-          </button>
-        </div>
-
-        {/* Tab Panels */}
         <div className="mt-2" id="tab-panels-viewport">
           {/* TAB 1: Input Setup and Astro Profile Editor */}
           {activeTab === "input" && (
@@ -578,15 +509,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="no-print mt-auto border-t border-natural-border px-6 py-4 text-center text-[10px] text-neutral-500 select-text" id="app-footer">
-        <div>
-          四宿統合五行アライメント鑑定システム ─ 西洋、ジョーティシュ、八字算命、数秘複合検証台
-        </div>
-        <div className="mt-1 font-mono text-[9px]">
-          Copyright © 2026 Integrated Destiny Synthesizer System. All Rights Reserved.
-        </div>
-      </footer>
+      <AppFooter />
     </div>
   );
 }
