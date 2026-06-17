@@ -1,0 +1,6 @@
+{
+  "name": "四柱推命・西洋・インド占星術・数秘 統合鑑定盤",
+  "description": "西洋占星術、インド占星術（ジョーティシュ）、四柱推命、数秘術の伝統的ロジックを統合し、人生のテーマ、収束する運命、流年時間割、バックテスト検証を可視化。AIが東洋・西洋を架橋して超本格的に読み解く総合 destiny analyzer。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@theme {
+  --font-serif: "Playfair Display", "Georgia", ui-serif, serif;
+  --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  
+  --color-natural-bg: #f8f7f2;
+  --color-natural-text: #2c2c2c;
+  --color-natural-olive: #5a5a40;
+  --color-natural-olive-dark: #3e3e2c;
+  --color-natural-cream: #e9e9df;
+  --color-natural-light-cream: #f0f0e8;
+  --color-natural-border: #e6e5db;
+}
+
+body {
+  background-color: var(--color-natural-bg);
+  color: var(--color-natural-text);
+  font-family: var(--font-sans);
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 16mm 14mm;
+    size: A4;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  html[data-print-mode="report"] #print-chat-section {
+    display: none !important;
+  }
+
+  body,
+  #app-root-container,
+  main,
+  #panel-report,
+  #printable-session,
+  #counseling-room-layout,
+  #print-report-section,
+  #print-chat-section {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #1a1a1a !important;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #printable-session,
+  #counseling-room-layout {
+    display: block !important;
+    gap: 0 !important;
+  }
+
+  #print-report-section,
+  #print-chat-section {
+    break-inside: auto;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  #print-chat-section {
+    break-before: page;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  #print-report-content,
+  #print-chat-content {
+    overflow: visible !important;
+    max-height: none !important;
+    padding: 0 !important;
+  }
+
+  #print-report-content h1 {
+    font-size: 16pt !important;
+    margin-top: 14pt !important;
+  }
+
+  #print-report-content h2 {
+    font-size: 12pt !important;
+    margin-top: 12pt !important;
+  }
+
+  #print-report-content h3,
+  #print-report-content p,
+  #print-report-content li {
+    font-size: 10.5pt !important;
+    line-height: 1.55 !important;
+  }
+
+  #print-chat-content .print-chat-message {
+    break-inside: avoid;
+    margin-bottom: 10pt;
+    max-width: 100% !important;
+  }
+
+  #print-chat-content .print-chat-bubble {
+    background: #fff !important;
+    color: #1a1a1a !important;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    border-radius: 6px !important;
+    padding: 8pt 10pt !important;
+  }
+
+  #print-chat-content .print-chat-bubble-user {
+    background: #f3f3ee !important;
+  }
+
+  .print-cover {
+    margin-bottom: 18pt;
+    padding-bottom: 12pt;
+    border-bottom: 2px solid #5a5a40;
+  }
+
+  .print-cover h1 {
+    font-family: var(--font-serif);
+    font-size: 20pt;
+    color: #5a5a40;
+    margin: 0 0 8pt;
+  }
+
+  .print-cover p {
+    font-size: 10pt;
+    margin: 2pt 0;
+    color: #444;
+  }
+}
+
