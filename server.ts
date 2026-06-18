@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import { formatApiError } from "./lib/gemini.js";
+import { toApiErrorResponse, withFortuneTimeout } from "./lib/gemini.js";
 import { generateFortuneChat, generateFortuneReport } from "./lib/fortuneService.js";
 
 dotenv.config({ override: true });
@@ -21,11 +21,12 @@ async function startServer() {
 
   app.post("/api/fortune", async (req, res) => {
     try {
-      const report = await generateFortuneReport(req.body);
-      res.json({ report });
+      const report = await withFortuneTimeout(generateFortuneReport(req.body));
+      res.json({ report, mode: "brief" });
     } catch (error) {
       console.error("Fortune generation error:", error);
-      res.status(500).json({ error: formatApiError(error) });
+      const { status, body } = toApiErrorResponse(error);
+      res.status(status).json(body);
     }
   });
 
@@ -35,7 +36,8 @@ async function startServer() {
       res.json({ text });
     } catch (error) {
       console.error("Fortune chat error:", error);
-      res.status(500).json({ error: formatApiError(error) });
+      const { status, body } = toApiErrorResponse(error);
+      res.status(status).json(body);
     }
   });
 

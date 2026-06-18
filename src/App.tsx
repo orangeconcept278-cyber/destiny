@@ -223,7 +223,8 @@ export default function App() {
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || "鑑定を構築中にエラーが生じました。");
+        const detail = [errJson.error, errJson.hint].filter(Boolean).join(" ");
+        throw new Error(detail || "鑑定を構築中にエラーが生じました。");
       }
 
       const resJson = await response.json();
@@ -449,7 +450,7 @@ export default function App() {
                   )}
                 </button>
                 <p className="text-[10px] text-neutral-500 mt-2.5 font-sans">
-                  ※ 統合鑑定AI（Gemini）が約15〜35秒で詳細鑑定書を生成します。混雑時は自動で別モデルに切り替えます。
+                  ※ 初回は簡易鑑定（約10秒以内）。より詳しい解説は相談ルームで深掘りできます。
                 </p>
               </div>
 

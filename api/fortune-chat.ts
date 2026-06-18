@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { formatApiError } from "../lib/gemini.js";
+import { toApiErrorResponse } from "../lib/gemini.js";
 import { generateFortuneChat } from "../lib/fortuneService.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,6 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ text });
   } catch (error) {
     console.error("Fortune chat error:", error);
-    return res.status(500).json({ error: formatApiError(error) });
+    const { status, body } = toApiErrorResponse(error);
+    return res.status(status).json(body);
   }
 }

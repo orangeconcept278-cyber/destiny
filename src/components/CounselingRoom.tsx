@@ -70,7 +70,8 @@ export default function CounselingRoom({
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || "占術対話サーバーからの応答がありません。");
+        const detail = [errJson.error, errJson.hint].filter(Boolean).join(" ");
+        throw new Error(detail || "占術対話サーバーからの応答がありません。");
       }
 
       const resData = await response.json();
