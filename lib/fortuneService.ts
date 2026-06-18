@@ -1,6 +1,6 @@
-import { buildRoadmapYearHeadings } from "./dateUtils";
-import { calculatePersonalYear } from "./personalYear";
-import { generateWithFallback } from "./gemini";
+import { buildRoadmapYearHeadings } from "./dateUtils.js";
+import { calculatePersonalYear } from "./personalYear.js";
+import { generateWithFallback } from "./gemini.js";
 
 function hasStaleYearsInReport(report: string, currentYear: number): boolean {
   const section = report.split("未来時間割").pop() ?? report;

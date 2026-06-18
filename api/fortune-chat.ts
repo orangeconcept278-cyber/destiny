@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { formatApiError } from "../lib/gemini";
-import { generateFortuneChat } from "../lib/fortuneService";
+import { formatApiError } from "../lib/gemini.js";
+import { generateFortuneChat } from "../lib/fortuneService.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {

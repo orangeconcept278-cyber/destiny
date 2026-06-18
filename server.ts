@@ -2,8 +2,8 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import { formatApiError } from "./lib/gemini";
-import { generateFortuneChat, generateFortuneReport } from "./lib/fortuneService";
+import { formatApiError } from "./lib/gemini.js";
+import { generateFortuneChat, generateFortuneReport } from "./lib/fortuneService.js";
 
 dotenv.config({ override: true });
 

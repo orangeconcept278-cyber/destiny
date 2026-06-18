@@ -1,4 +1,4 @@
-import { getCurrentYear } from "./dateUtils";
+import { getCurrentYear } from "./dateUtils.js";
 
 export function calculatePersonalYear(
   dateStr: string,
