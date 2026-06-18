@@ -3,6 +3,7 @@ import { AllFortuneData, PastEvent, ChatMessage } from "./types";
 import { generateInitialAstroData } from "./utils/astrologyCalc";
 import { createWelcomeChatMessage } from "./utils/chatUtils";
 import { downloadSessionMarkdown, downloadSessionJson } from "./utils/sessionExport";
+import { fetchWithTimeout } from "./utils/fetchWithTimeout";
 import {
   getProfiles,
   saveProfile,
@@ -218,7 +219,7 @@ export default function App() {
     setChatHistory([]);
 
     try {
-      const response = await fetch("/api/fortune", {
+      const response = await fetchWithTimeout("/api/fortune", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fortuneData),
@@ -244,7 +245,7 @@ export default function App() {
         const meta = FORTUNE_SECTION_META[sectionId];
         setReportLoadingLabel(meta.loading);
 
-        const sectionRes = await fetch("/api/fortune-section", {
+        const sectionRes = await fetchWithTimeout("/api/fortune-section", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

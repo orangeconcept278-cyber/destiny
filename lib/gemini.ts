@@ -4,7 +4,7 @@ const apiKey = process.env.GEMINI_API_KEY;
 
 export const FORTUNE_OVERVIEW_MAX_TOKENS = 800;
 export const FORTUNE_SECTION_MAX_TOKENS = 2000;
-export const FORTUNE_TIMEOUT_MS = 9000;
+export const FORTUNE_TIMEOUT_MS = 30000;
 
 const FORTUNE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"];
 
@@ -32,9 +32,9 @@ export function toApiErrorResponse(error: unknown): { status: number; body: ApiE
     return {
       status: 504,
       body: {
-        error: "鑑定生成が制限時間（10秒）を超えました。",
+        error: "鑑定生成に少し時間がかかっています。",
         code: "TIMEOUT",
-        hint: "簡易鑑定でも時間がかかっています。数十秒待って再試行するか、相談ルームで個別に質問してください。",
+        hint: "しばらく待ってから再度お試しください。混雑時は相談ルームで個別に質問することもできます。",
       },
     };
   }

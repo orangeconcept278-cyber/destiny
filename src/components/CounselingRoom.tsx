@@ -4,6 +4,7 @@ import { Send, User, Sparkles, Loader, Compass, Download, Printer } from "lucide
 import ReactMarkdown from "react-markdown";
 import { printSession } from "../utils/printSession";
 import { getCurrentDateLabel } from "../utils/dateUtils";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
 interface CounselingRoomProps {
   report: string;
@@ -53,7 +54,7 @@ export default function CounselingRoom({
     setLoading(true);
 
     try {
-      const response = await fetch("/api/fortune-chat", {
+      const response = await fetchWithTimeout("/api/fortune-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
