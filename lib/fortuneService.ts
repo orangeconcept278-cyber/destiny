@@ -5,6 +5,7 @@ import {
   generateWithFallback,
 } from "./gemini.js";
 import { buildFortuneContext, parseFortuneInput } from "./fortuneData.js";
+import { buildRoadmapYearHeadings } from "./dateUtils.js";
 import { FortuneSectionId, FORTUNE_SECTION_META, isFortuneSectionId } from "./fortuneSections.js";
 import { FortuneSectionResult, PriorSummaries } from "./fortuneTypes.js";
 
@@ -71,9 +72,11 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
   const input = parseFortuneInput(body);
   const ctx = buildFortuneContext(input);
 
+  const roadmapHeadings = buildRoadmapYearHeadings(ctx.currentYear, 3);
+
   const systemInstruction = `
 あなたは統合鑑定者です。4占術を横断する「総合鑑定」を書きます。
-基準年:${ctx.currentYear}年。出力は800〜1200字。簡潔だが格調高く。
+基準年:${ctx.currentYear}年。出力は600〜900字。簡潔だが格調高く。
 `;
 
   const prompt = `
@@ -81,7 +84,7 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 
 ### 指定見出し
 ## 統合鑑定サマリー
-（相談者の人生の主題を3〜4文で）
+（相談者の人生の主題を2〜3文で）
 
 ### 四体系の要点（各1文）
 - 西洋:
@@ -90,15 +93,15 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 - 数秘:
 
 ### いま最も意識すべきテーマ
-（2文）
+（1〜2文）
 
 ### 時系列の未来時間割
 今後数年間の運気の流れをロードマップとして提示します。
-${ctx.roadmapHeadings}
-（各年の見出しをそのまま使用し、各年3〜4文で運気の流れ・テーマ・注意点を記述）
+${roadmapHeadings}
+（各年の見出しをそのまま使用し、各年2文で運気の流れと注意点を記述）
 
 ### 相談者の問いへの統合回答
-（2〜3文）
+（2文）
 
 【相談者】${ctx.basicBlock}
 【悩み】${ctx.concerns}
@@ -117,6 +120,7 @@ ${ctx.futureNotes}
     contents: prompt,
     systemInstruction,
     maxOutputTokens: FORTUNE_OVERVIEW_MAX_TOKENS,
+    lean: true,
   });
 
   return response.text ?? "";

@@ -544,8 +544,18 @@ export default function App() {
               {/* Submit / Synthesize Button */}
               <div className="flex flex-col items-center justify-center pt-4">
                 {errorMsg && (
-                  <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-xl max-w-md text-center">
-                    {errorMsg}
+                  <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-xl max-w-md text-center space-y-2">
+                    <p>{errorMsg}</p>
+                    {(errorMsg.includes("混雑") || errorMsg.includes("上限") || errorMsg.includes("時間がかか")) && (
+                      <button
+                        type="button"
+                        onClick={handleStartFortune}
+                        disabled={isGenerating}
+                        className="text-[10px] font-semibold px-3 py-1.5 bg-white border border-red-200 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {isGenerating ? "再試行中…" : "1〜2分待ってから再試行"}
+                      </button>
+                    )}
                   </div>
                 )}
                 <button

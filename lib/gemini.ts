@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-export const FORTUNE_OVERVIEW_MAX_TOKENS = 1200;
+export const FORTUNE_OVERVIEW_MAX_TOKENS = 900;
 export const FORTUNE_SECTION_MAX_TOKENS = 1400;
 export const FORTUNE_TIMEOUT_MS = 30000;
 
@@ -138,13 +138,17 @@ export async function generateFortuneContent(options: {
   contents: string;
   systemInstruction: string;
   maxOutputTokens?: number;
+  /** 総合鑑定用: 1モデル・リトライなし（混雑時のGemini呼び出しを最小化） */
+  lean?: boolean;
 }) {
   const ai = getClient();
   let lastError: unknown;
   const maxOutputTokens = options.maxOutputTokens ?? FORTUNE_OVERVIEW_MAX_TOKENS;
+  const models = options.lean ? [FORTUNE_MODELS[0]] : FORTUNE_MODELS;
+  const maxAttempts = options.lean ? 1 : 2;
 
-  for (const model of FORTUNE_MODELS) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+  for (const model of models) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const response = await ai.models.generateContent({
           model,
@@ -155,17 +159,17 @@ export async function generateFortuneContent(options: {
             maxOutputTokens,
           },
         });
-        console.log(`[Gemini] 鑑定生成成功: model=${model} tokens=${maxOutputTokens}`);
+        console.log(`[Gemini] 鑑定生成成功: model=${model} lean=${Boolean(options.lean)} tokens=${maxOutputTokens}`);
         return response;
       } catch (error) {
         lastError = error;
-        if (isRetryableGeminiError(error) && attempt === 0) {
+        if (!options.lean && isRetryableGeminiError(error) && attempt === 0) {
           console.warn(`[Gemini] model=${model} リトライ待機（503/429）`);
           await sleep(3500);
           continue;
         }
-        console.warn(`[Gemini] fortune model=${model} failed`);
-        await sleep(1500);
+        console.warn(`[Gemini] fortune model=${model} failed lean=${Boolean(options.lean)}`);
+        if (!options.lean) await sleep(1500);
         break;
       }
     }
