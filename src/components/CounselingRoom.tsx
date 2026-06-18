@@ -51,7 +51,7 @@ export default function CounselingRoom({
     setLoading(true);
 
     try {
-      const response = await fetch("/api/fortune/chat", {
+      const response = await fetch("/api/fortune-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
