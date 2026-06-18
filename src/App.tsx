@@ -27,6 +27,7 @@ import StepNav from "./components/layout/StepNav";
 import AppFooter from "./components/layout/AppFooter";
 import { AppTab } from "./types/layout";
 import { FORTUNE_SECTION_META, FORTUNE_SECTION_ORDER, FORTUNE_OVERVIEW_LOADING, FORTUNE_SECTION_DELAY_MS, FORTUNE_TOTAL_STEPS, formatFortuneProgress } from "../lib/fortuneSections";
+import type { PriorSummaries } from "../lib/fortuneTypes";
 import { sleep } from "./utils/sleep";
 import {
   Compass,
@@ -214,7 +215,7 @@ export default function App() {
   // Submit report synthesis request — overview then sections strictly in series
   const fetchFortuneSection = async (
     sectionId: (typeof FORTUNE_SECTION_ORDER)[number],
-    priorContext: string
+    priorSummaries: PriorSummaries
   ) => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const sectionRes = await fetchWithTimeout("/api/fortune-section", {
@@ -223,7 +224,7 @@ export default function App() {
         body: JSON.stringify({
           section: sectionId,
           data: fortuneData,
-          priorContext,
+          priorSummaries,
         }),
       });
 
@@ -261,6 +262,7 @@ export default function App() {
 
       const resJson = await response.json();
       let fullReport: string = resJson.report;
+      const priorSummaries: PriorSummaries = { overview: fullReport };
 
       setReport(fullReport);
       setChatHistory([createWelcomeChatMessage()]);
@@ -276,7 +278,7 @@ export default function App() {
         setReportLoadingLabel(formatFortuneProgress(meta.loading, step, FORTUNE_TOTAL_STEPS));
         await sleep(FORTUNE_SECTION_DELAY_MS);
 
-        const sectionRes = await fetchFortuneSection(sectionId, fullReport);
+        const sectionRes = await fetchFortuneSection(sectionId, priorSummaries);
 
         if (!sectionRes.ok) {
           const errJson = await sectionRes.json().catch(() => ({}));
@@ -285,7 +287,8 @@ export default function App() {
         }
 
         const sectionJson = await sectionRes.json();
-        fullReport += `\n\n${meta.title}\n\n${sectionJson.content}`;
+        priorSummaries[sectionId] = sectionJson.summary;
+        fullReport += `\n\n${meta.title}\n\n${sectionJson.fullText}`;
         setReport(fullReport);
       }
 

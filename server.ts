@@ -32,7 +32,7 @@ async function startServer() {
   });
 
   app.post("/api/fortune-section", async (req, res) => {
-    const { section, data, priorContext } = req.body ?? {};
+    const { section, data, priorSummaries } = req.body ?? {};
     if (!isFortuneSectionId(section)) {
       return res.status(400).json({
         error: "section は western / bazi / jyotish / numerology / integration のいずれかを指定してください。",
@@ -40,14 +40,14 @@ async function startServer() {
       });
     }
     try {
-      const content = await withFortuneTimeout(
+      const result = await withFortuneTimeout(
         generateFortuneSection(
           section,
           data ?? {},
-          typeof priorContext === "string" ? priorContext : undefined
+          priorSummaries && typeof priorSummaries === "object" ? priorSummaries : undefined
         )
       );
-      res.json({ section, content });
+      res.json({ section, fullText: result.fullText, summary: result.summary });
     } catch (error) {
       console.error(`Fortune section error (${section}):`, error);
       const { status, body } = toApiErrorResponse(error);

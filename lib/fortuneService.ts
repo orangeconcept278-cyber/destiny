@@ -5,23 +5,66 @@ import {
   generateWithFallback,
 } from "./gemini.js";
 import { buildFortuneContext, parseFortuneInput } from "./fortuneData.js";
-import { FortuneSectionId, isFortuneSectionId } from "./fortuneSections.js";
+import { FortuneSectionId, FORTUNE_SECTION_META, isFortuneSectionId } from "./fortuneSections.js";
+import { FortuneSectionResult, PriorSummaries } from "./fortuneTypes.js";
 
 const SECTION_STYLE = `
 各論点は「①結論→②根拠（パラメータ引用）→③処方」の順で書く。
 専門用語には括弧で短い説明を添える。推測は【推測】と明記。
-病気・死期の断定は禁止。日本語・1200〜1800字程度。
-前セクションの鑑定文脈と矛盾しないこと。
+病気・死期の断定は禁止。前セクションの要約と矛盾しないこと。
 `;
 
-function truncatePriorContext(text: string, maxChars = 12000): string {
-  if (text.length <= maxChars) return text;
-  return `…（前半省略）\n\n${text.slice(-maxChars)}`;
+const JSON_OUTPUT_RULE = `
+【出力形式（厳守）】
+必ず次のJSONのみを出力すること。前置き・後書き・マークダウンコードブロックは禁止。
+{
+  "fullText": "詳細鑑定本文（1000〜2000字、見出しは###を使用可）",
+  "summary": "次の占術へ渡す要約（200〜300字、結論とキーワードのみ）"
+}
+`;
+
+function formatPriorSummaries(summaries?: PriorSummaries): string {
+  if (!summaries) return "（なし）";
+
+  const lines: string[] = [];
+  if (summaries.overview?.trim()) {
+    lines.push(`### 統合サマリー要約\n${summaries.overview.trim()}`);
+  }
+
+  const sectionOrder: FortuneSectionId[] = ["western", "bazi", "jyotish", "numerology"];
+  for (const id of sectionOrder) {
+    const text = summaries[id]?.trim();
+    if (!text) continue;
+    const label = FORTUNE_SECTION_META[id].title.replace(/^##\s*/, "");
+    lines.push(`### ${label}要約\n${text}`);
+  }
+
+  return lines.length ? lines.join("\n\n") : "（なし）";
 }
 
-function buildContextBlock(priorContext?: string): string {
-  if (!priorContext?.trim()) return "（なし）";
-  return truncatePriorContext(priorContext);
+function parseSectionResponse(raw: string): FortuneSectionResult {
+  const trimmed = raw.trim();
+  const jsonMatch = trimmed.match(/\{[\s\S]*"fullText"[\s\S]*"summary"[\s\S]*\}/);
+
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]) as { fullText?: unknown; summary?: unknown };
+      if (parsed.fullText && parsed.summary) {
+        return {
+          fullText: String(parsed.fullText).trim(),
+          summary: String(parsed.summary).trim(),
+        };
+      }
+    } catch {
+      // fall through to fallback
+    }
+  }
+
+  const fullText = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  return {
+    fullText,
+    summary: fullText.slice(0, 300),
+  };
 }
 
 export async function generateFortuneReport(body: Record<string, unknown>): Promise<string> {
@@ -30,7 +73,7 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 
   const systemInstruction = `
 あなたは統合鑑定者です。4占術を横断する総合鑑定の「冒頭サマリー」を書きます。
-基準年:${ctx.currentYear}年。出力は600〜900字。簡潔だが格調高く。
+基準年:${ctx.currentYear}年。出力は400〜600字。簡潔だが格調高く。
 `;
 
   const prompt = `
@@ -40,14 +83,14 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 ## 統合鑑定サマリー
 （相談者の人生の主題を3〜4文で）
 
-### 四体系の要点（各1〜2文）
+### 四体系の要点（各1文）
 - 西洋:
 - インド:
 - 四柱:
 - 数秘:
 
 ### いま最も意識すべきテーマ
-（2〜3文）
+（2文）
 
 【相談者】${ctx.basicBlock}
 【悩み】${ctx.concerns}
@@ -70,25 +113,26 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 export async function generateFortuneSection(
   section: FortuneSectionId,
   body: Record<string, unknown>,
-  priorContext?: string
-): Promise<string> {
+  priorSummaries?: PriorSummaries
+): Promise<FortuneSectionResult> {
   if (!isFortuneSectionId(section)) {
     throw new Error(`INVALID_SECTION:${section}`);
   }
 
   const input = parseFortuneInput(body);
   const ctx = buildFortuneContext(input);
-  const contextBlock = buildContextBlock(priorContext);
+  const summariesBlock = formatPriorSummaries(priorSummaries);
 
   const systemInstruction = `
 あなたは統合鑑定者です。今回は「${section}」パートのみを深く書きます。
 ${SECTION_STYLE}
+${JSON_OUTPUT_RULE}
 基準年:${ctx.currentYear}年。
 `;
 
   const contextSection = `
-【これまでの鑑定文脈（必ず整合すること）】
-${contextBlock}
+【これまでの占術要約（整合性の参考のみ。全文は渡していない）】
+${summariesBlock}
 `;
 
   let prompt = "";
@@ -96,14 +140,17 @@ ${contextBlock}
   switch (section) {
     case "western":
       prompt = `
-【西洋占星術・詳細鑑定】トロピカル式。1200〜1800字。
+【西洋占星術・詳細鑑定】トロピカル式。fullTextは1000〜2000字、summaryは200〜300字。
 ${contextSection}
 
-### 含める内容
+### fullTextに含める内容
 - ASC/MCの意味と人生への影響
 - ステリウム・アスペクト・ハウス配置の解釈
 - 強みと課題（各①②③形式）
 - 今年${ctx.currentYear}年の行動指針
+
+### summaryに含める内容
+- 西洋占星術の結論3点とキーワード（次の占術が参照する短い要約）
 
 【データ】${ctx.basicBlock}
 ${ctx.westernBlock}
@@ -113,15 +160,18 @@ ${ctx.westernBlock}
       break;
     case "bazi":
       prompt = `
-【四柱推命・詳細鑑定】1200〜1800字。
+【四柱推命・詳細鑑定】fullTextは1000〜2000字、summaryは200〜300字。
 ${contextSection}
 
-### 含める内容
+### fullTextに含める内容
 - 日主の本質と格局
 - 調候用神・通変星・空亡の意味
 - 現在大運と${ctx.currentYear}年流年の読み
 - 仕事・対人の処方
-- 西洋占星術の示唆と接続できる点があれば1〜2文で言及
+- 西洋占星術の要約と接続できる点があれば1〜2文で言及
+
+### summaryに含める内容
+- 四柱推命の結論3点とキーワード
 
 【データ】${ctx.basicBlock}
 ${ctx.baziBlock}
@@ -130,15 +180,18 @@ ${ctx.baziBlock}
       break;
     case "jyotish":
       prompt = `
-【インド占星術（ジョーティシュ）・詳細鑑定】1200〜1800字。
+【インド占星術（ジョーティシュ）・詳細鑑定】fullTextは1000〜2000字、summaryは200〜300字。
 ${contextSection}
 
-### 含める内容
+### fullTextに含める内容
 - ラグナとナクシャトラの本質
 - ヨーガ・シャドバラ・アシュタカヴァルガ
 - 現在のダシャー期の意味と過ごし方
 - カルマ的課題と処方
-- これまでの西洋・四柱の示唆と接続できる点があれば言及
+- これまでの占術要約と接続できる点があれば言及
+
+### summaryに含める内容
+- ジョーティシュの結論3点とキーワード
 
 【データ】${ctx.basicBlock}
 ${ctx.vedicBlock}
@@ -147,15 +200,18 @@ ${ctx.vedicBlock}
       break;
     case "numerology":
       prompt = `
-【数秘術・詳細鑑定】1200〜1800字。
+【数秘術・詳細鑑定】fullTextは1000〜2000字、summaryは200〜300字。
 ${contextSection}
 
-### 含める内容
+### fullTextに含める内容
 - ライフパス・表現数・ソウルナンバーの統合読み
 - ${ctx.currentYear}年パーソナルイヤー${ctx.thisYearPy}の意味
 - 9年サイクル上の現在地
 - 金運・仕事・関係性への示唆
-- これまでの鑑定文脈との一致・補足
+- これまでの占術要約との一致・補足
+
+### summaryに含める内容
+- 数秘術の結論3点とキーワード
 
 【データ】${ctx.basicBlock}
 ${ctx.numerologyBlock}
@@ -164,22 +220,22 @@ ${ctx.numerologyBlock}
       break;
     case "integration":
       prompt = `
-【統合鑑定・マルチアライメント】1200〜1800字。
-${contextSection}
+【統合鑑定・マルチアライメント】fullTextは1000〜2000字、summaryは200〜300字。
 
-### 含める内容
-1. 三重/二重一致（2〜3件、確信度付き）— 前セクションの内容を統合して述べる
+【各占術の要約のみを統合して鑑定すること。詳細全文は与えられていない】
+${summariesBlock}
+
+### fullTextに含める内容
+1. 三重/二重一致（2〜3件、確信度付き）— 上記要約を統合して述べる
 2. 答え合わせ（過去イベントがある場合）
-3. 未来時間割（次の見出しをそのまま使用、各年3〜4文）
+3. 未来時間割（次の見出しをそのまま使用、各年2〜3文）
 ${ctx.roadmapHeadings}
 4. 相談者の問いへの統合回答
 
-【全データ】
-${ctx.basicBlock}
-${ctx.westernBlock}
-${ctx.vedicBlock}
-${ctx.baziBlock}
-${ctx.numerologyBlock}
+### summaryに含める内容
+- 統合鑑定の最終結論と行動指針（短く）
+
+【相談者】${ctx.basicBlock}
 【過去イベント】
 ${ctx.pastEvents}
 【未来メモ】
@@ -196,7 +252,7 @@ ${ctx.futureNotes}
     maxOutputTokens: FORTUNE_SECTION_MAX_TOKENS,
   });
 
-  return response.text ?? "";
+  return parseSectionResponse(response.text ?? "");
 }
 
 export async function generateFortuneChat(body: Record<string, unknown>): Promise<string> {

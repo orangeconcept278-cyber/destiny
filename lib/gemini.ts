@@ -2,8 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-export const FORTUNE_OVERVIEW_MAX_TOKENS = 800;
-export const FORTUNE_SECTION_MAX_TOKENS = 2000;
+export const FORTUNE_OVERVIEW_MAX_TOKENS = 600;
+export const FORTUNE_SECTION_MAX_TOKENS = 1400;
 export const FORTUNE_TIMEOUT_MS = 30000;
 
 const FORTUNE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash"];
