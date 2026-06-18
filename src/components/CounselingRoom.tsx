@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { AllFortuneData, ChatMessage } from "../types";
-import { Send, User, Sparkles, Loader, Compass, Download, Printer } from "lucide-react";
+import { Send, User, Sparkles, Loader, Compass, Download, Printer, BookOpen, MessageCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { printSession } from "../utils/printSession";
 import { getCurrentDateLabel } from "../utils/dateUtils";
@@ -29,10 +29,14 @@ export default function CounselingRoom({
 }: CounselingRoomProps) {
   const [input, setInput] = React.useState<string>("");
   const [loading, setLoading] = React.useState<boolean>(false);
+  const [mobilePanel, setMobilePanel] = React.useState<"report" | "chat">("report");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = chatContainerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
   }, [chatHistory, loading]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -112,21 +116,50 @@ export default function CounselingRoom({
       </div>
 
       <div
-        className="flex flex-col xl:flex-row gap-6 h-[85vh] overflow-hidden"
+        className="flex flex-col xl:flex-row gap-4 xl:gap-6 xl:h-[85vh] overflow-hidden"
         id="counseling-room-layout"
       >
+        <div className="no-print xl:hidden flex gap-2 p-1 bg-natural-light-cream/50 border border-natural-border rounded-xl">
+          <button
+            type="button"
+            onClick={() => setMobilePanel("report")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
+              mobilePanel === "report"
+                ? "bg-white text-natural-olive shadow-sm"
+                : "text-neutral-500"
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            統合鑑定書
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobilePanel("chat")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
+              mobilePanel === "chat"
+                ? "bg-white text-natural-olive shadow-sm"
+                : "text-neutral-500"
+            }`}
+          >
+            <MessageCircle className="w-4 h-4" />
+            相談ルーム
+          </button>
+        </div>
+
       <div
         id="print-report-section"
-        className="flex-1 bg-white border border-natural-border rounded-2xl flex flex-col h-full overflow-hidden shadow-sm"
+        className={`flex-1 bg-white border border-natural-border rounded-2xl flex flex-col min-h-[65vh] xl:min-h-0 xl:h-full overflow-hidden shadow-sm ${
+          mobilePanel === "report" ? "flex" : "hidden xl:flex"
+        }`}
       >
-        <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex items-center justify-between gap-3">
+        <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <Compass className="w-5 h-5 text-natural-olive shrink-0" id="compass-report" />
-            <h3 className="font-bold text-natural-olive text-sm font-serif tracking-wide truncate">
-              統合鑑定書 ─ 運命の立体複写 (Fortune Map)
+            <h3 className="font-bold text-natural-olive text-sm font-serif tracking-wide">
+              統合鑑定書
             </h3>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <button
               onClick={onDownloadMarkdown}
               className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
@@ -225,7 +258,9 @@ export default function CounselingRoom({
 
       <div
         id="print-chat-section"
-        className="xl:w-[480px] bg-white border border-natural-border rounded-2xl flex flex-col h-full overflow-hidden shadow-sm"
+        className={`xl:w-[480px] bg-white border border-natural-border rounded-2xl flex flex-col min-h-[65vh] xl:min-h-0 xl:h-full overflow-hidden shadow-sm ${
+          mobilePanel === "chat" ? "flex" : "hidden xl:flex"
+        }`}
       >
         <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex items-center gap-2.5">
           <div className="w-2.5 h-2.5 rounded-full bg-natural-olive animate-ping shrink-0" />
@@ -245,7 +280,11 @@ export default function CounselingRoom({
           </h2>
         </div>
 
-        <div id="print-chat-content" className="flex-1 overflow-y-auto p-4 space-y-4 bg-natural-light-cream/10">
+        <div
+          id="print-chat-content"
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4 bg-natural-light-cream/10"
+        >
           {chatHistory.map((msg) => {
             const isModel = msg.role === "model";
             return (
