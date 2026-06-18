@@ -4,6 +4,7 @@ import {
   LAZY_FORTUNE_SECTION_ORDER,
 } from "../../lib/fortuneSections";
 import { FortuneSectionResult, PriorSummaries } from "../../lib/fortuneTypes";
+import { normalizeSectionResult } from "../../lib/sectionParse";
 
 export type ReportTabId = "overview" | FortuneSectionId;
 
@@ -14,9 +15,11 @@ export function buildFullReport(
   if (!overview.trim()) return "";
   let report = overview.trim();
   for (const id of LAZY_FORTUNE_SECTION_ORDER) {
-    const text = sections[id]?.fullText?.trim();
-    if (text) {
-      report += `\n\n${FORTUNE_SECTION_META[id].title}\n\n${text}`;
+    const raw = sections[id];
+    if (!raw?.fullText?.trim()) continue;
+    const { fullText } = normalizeSectionResult(raw);
+    if (fullText) {
+      report += `\n\n${FORTUNE_SECTION_META[id].title}\n\n${fullText}`;
     }
   }
   return report;
@@ -28,7 +31,9 @@ export function buildPriorSummaries(
 ): PriorSummaries {
   const summaries: PriorSummaries = { overview };
   for (const id of LAZY_FORTUNE_SECTION_ORDER) {
-    const summary = sections[id]?.summary?.trim();
+    const raw = sections[id];
+    if (!raw) continue;
+    const { summary } = normalizeSectionResult(raw);
     if (summary) summaries[id] = summary;
   }
   return summaries;

@@ -12,6 +12,7 @@ import {
   FortuneSectionId,
 } from "../../lib/fortuneSections";
 import { FortuneSectionResult } from "../../lib/fortuneTypes";
+import { normalizeSectionResult } from "../../lib/sectionParse";
 
 interface CounselingRoomProps {
   overview: string;
@@ -96,7 +97,10 @@ export default function CounselingRoom({
   const activeContent =
     reportTab === "overview"
       ? overview
-      : sectionResults[reportTab]?.fullText ?? "";
+      : normalizeSectionResult({
+          fullText: sectionResults[reportTab]?.fullText ?? "",
+          summary: sectionResults[reportTab]?.summary ?? "",
+        }).fullText;
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();

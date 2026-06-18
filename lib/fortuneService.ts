@@ -8,6 +8,7 @@ import { buildFortuneContext, parseFortuneInput } from "./fortuneData.js";
 import { buildRoadmapYearHeadings } from "./dateUtils.js";
 import { FortuneSectionId, FORTUNE_SECTION_META, isFortuneSectionId } from "./fortuneSections.js";
 import { FortuneSectionResult, PriorSummaries } from "./fortuneTypes.js";
+import { parseSectionResponse } from "./sectionParse.js";
 
 const SECTION_STYLE = `
 各論点は「①結論→②根拠（パラメータ引用）→③処方」の順で書く。
@@ -43,30 +44,6 @@ function formatPriorSummaries(summaries?: PriorSummaries): string {
   return lines.length ? lines.join("\n\n") : "（なし）";
 }
 
-function parseSectionResponse(raw: string): FortuneSectionResult {
-  const trimmed = raw.trim();
-  const jsonMatch = trimmed.match(/\{[\s\S]*"fullText"[\s\S]*"summary"[\s\S]*\}/);
-
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]) as { fullText?: unknown; summary?: unknown };
-      if (parsed.fullText && parsed.summary) {
-        return {
-          fullText: String(parsed.fullText).trim(),
-          summary: String(parsed.summary).trim(),
-        };
-      }
-    } catch {
-      // fall through to fallback
-    }
-  }
-
-  const fullText = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  return {
-    fullText,
-    summary: fullText.slice(0, 300),
-  };
-}
 
 export async function generateFortuneReport(body: Record<string, unknown>): Promise<string> {
   const input = parseFortuneInput(body);
