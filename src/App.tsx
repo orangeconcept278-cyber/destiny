@@ -11,6 +11,7 @@ import {
   getLastProfileId,
   setLastProfileId,
   normalizeFortuneData,
+  migrateStoredProfiles,
   SavedProfile,
 } from "./utils/profileStorage";
 import AstroChartEditor from "./components/AstroChartEditor";
@@ -77,6 +78,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    migrateStoredProfiles();
     const profiles = getProfiles();
     setSavedProfiles(profiles);
 

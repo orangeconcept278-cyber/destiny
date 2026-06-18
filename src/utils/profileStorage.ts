@@ -1,4 +1,4 @@
-import { AllFortuneData, ChatMessage } from "../types";
+import { AllFortuneData, ChatMessage, PastEvent } from "../types";
 
 export interface SavedProfile {
   id: string;
@@ -11,6 +11,15 @@ export interface SavedProfile {
 
 const PROFILES_KEY = "astria-profiles-v1";
 const LAST_PROFILE_KEY = "astria-last-profile-id";
+
+const LEGACY_PLACEHOLDER_EVENT_TEXTS = new Set([
+  "初めての就職・就労",
+  "転職、または生活拠点の大きな移転",
+]);
+
+function stripLegacyPlaceholderPastEvents(events: PastEvent[]): PastEvent[] {
+  return events.filter((event) => !LEGACY_PLACEHOLDER_EVENT_TEXTS.has(event.event));
+}
 
 function readProfiles(): SavedProfile[] {
   try {
@@ -92,9 +101,26 @@ export function setLastProfileId(id: string): void {
 export function normalizeFortuneData(data: AllFortuneData): AllFortuneData {
   return {
     ...data,
-    pastEvents: data.pastEvents ?? [],
+    pastEvents: stripLegacyPlaceholderPastEvents(data.pastEvents ?? []),
     futureYearNotes: data.futureYearNotes ?? [],
     concerns: data.concerns ?? "",
     questions: data.questions ?? "",
   };
+}
+
+export function migrateStoredProfiles(): void {
+  const profiles = readProfiles();
+  const migrated = profiles.map((profile) => ({
+    ...profile,
+    data: normalizeFortuneData(profile.data),
+  }));
+
+  const changed = migrated.some(
+    (profile, index) =>
+      JSON.stringify(profile.data.pastEvents) !== JSON.stringify(profiles[index]?.data.pastEvents ?? [])
+  );
+
+  if (changed) {
+    writeProfiles(migrated);
+  }
 }
