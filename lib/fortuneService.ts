@@ -1,5 +1,5 @@
-import { calculatePersonalYear } from "../src/utils/astrologyCalc";
-import { buildRoadmapYearHeadings } from "../src/utils/dateUtils";
+import { buildRoadmapYearHeadings } from "./dateUtils";
+import { calculatePersonalYear } from "./personalYear";
 import { generateWithFallback } from "./gemini";
 
 function hasStaleYearsInReport(report: string, currentYear: number): boolean {
