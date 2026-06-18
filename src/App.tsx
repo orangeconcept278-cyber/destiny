@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { AllFortuneData, PastEvent, ChatMessage } from "./types";
 import { generateInitialAstroData } from "./utils/astrologyCalc";
 import { createWelcomeChatMessage } from "./utils/chatUtils";
 import { downloadSessionMarkdown, downloadSessionJson } from "./utils/sessionExport";
-import { fetchWithTimeout } from "./utils/fetchWithTimeout";
+import { fetchFortuneWithRetry, GEMINI_RETRY_MESSAGE } from "./utils/fortuneFetch";
+import { buildFullReport, buildPriorSummaries, ReportTabId } from "./utils/buildReport";
+import {
+  fortuneDataCacheKey,
+  loadCachedSession,
+  saveCachedOverview,
+  saveCachedSection,
+  clearCachedSession,
+} from "./utils/sectionCache";
 import {
   getProfiles,
   saveProfile,
@@ -26,9 +34,9 @@ import HeroSection from "./components/layout/HeroSection";
 import StepNav from "./components/layout/StepNav";
 import AppFooter from "./components/layout/AppFooter";
 import { AppTab } from "./types/layout";
-import { FORTUNE_SECTION_META, FORTUNE_SECTION_ORDER, FORTUNE_OVERVIEW_LOADING, FORTUNE_SECTION_DELAY_MS, FORTUNE_TOTAL_STEPS, formatFortuneProgress } from "../lib/fortuneSections";
-import type { PriorSummaries } from "../lib/fortuneTypes";
-import { sleep } from "./utils/sleep";
+import { FORTUNE_SECTION_META, FORTUNE_OVERVIEW_LOADING } from "../lib/fortuneSections";
+import type { FortuneSectionId } from "../lib/fortuneSections";
+import type { FortuneSectionResult } from "../lib/fortuneTypes";
 import {
   Compass,
   Heart,
@@ -54,7 +62,10 @@ export default function App() {
   });
 
   const [loading, setLoading] = useState<boolean>(false);
-  const [report, setReport] = useState<string>("");
+  const [overview, setOverview] = useState<string>("");
+  const [sectionResults, setSectionResults] = useState<Partial<Record<FortuneSectionId, FortuneSectionResult>>>({});
+  const [reportTab, setReportTab] = useState<ReportTabId>("overview");
+  const [sectionLoading, setSectionLoading] = useState<FortuneSectionId | null>(null);
   const [reportLoadingLabel, setReportLoadingLabel] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
@@ -62,6 +73,9 @@ export default function App() {
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
   const [profileNameInput, setProfileNameInput] = useState<string>("");
   const [profileMsg, setProfileMsg] = useState<string>("");
+
+  const cacheKey = useMemo(() => fortuneDataCacheKey(fortuneData), [fortuneData]);
+  const report = useMemo(() => buildFullReport(overview, sectionResults), [overview, sectionResults]);
 
   const refreshProfiles = () => setSavedProfiles(getProfiles());
 
@@ -73,8 +87,11 @@ export default function App() {
 
   const applyProfile = (profile: SavedProfile) => {
     setFortuneData(normalizeFortuneData(profile.data));
-    setReport(profile.report ?? "");
-    setChatHistory(resolveChatHistory(profile.report, profile.chatHistory));
+    const loadedReport = profile.report ?? "";
+    setOverview(loadedReport);
+    setSectionResults({});
+    setReportTab("overview");
+    setChatHistory(resolveChatHistory(loadedReport, profile.chatHistory));
     setSelectedProfileId(profile.id);
     setProfileNameInput(profile.name);
     setLastProfileId(profile.id);
@@ -91,7 +108,8 @@ export default function App() {
     const lastProfile = lastId ? profiles.find((p) => p.id === lastId) : null;
     if (lastProfile) {
       setFortuneData(normalizeFortuneData(lastProfile.data));
-      setReport(lastProfile.report ?? "");
+      setOverview(lastProfile.report ?? "");
+      setSectionResults({});
       setChatHistory(resolveChatHistory(lastProfile.report, lastProfile.chatHistory));
       setSelectedProfileId(lastProfile.id);
       setProfileNameInput(lastProfile.name);
@@ -212,47 +230,94 @@ export default function App() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Submit report synthesis request — overview then sections strictly in series
-  const fetchFortuneSection = async (
-    sectionId: (typeof FORTUNE_SECTION_ORDER)[number],
-    priorSummaries: PriorSummaries
-  ) => {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const sectionRes = await fetchWithTimeout("/api/fortune-section", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section: sectionId,
-          data: fortuneData,
-          priorSummaries,
-        }),
-      });
+  const loadFortuneSection = useCallback(
+    async (sectionId: FortuneSectionId) => {
+      if (sectionResults[sectionId] || sectionLoading === sectionId) return;
 
-      if (sectionRes.ok || sectionRes.status !== 503 || attempt === 1) {
-        return sectionRes;
+      const cached = loadCachedSession(cacheKey);
+      if (cached?.sections[sectionId]) {
+        setSectionResults((prev) => ({ ...prev, [sectionId]: cached.sections[sectionId]! }));
+        return;
       }
 
-      await sleep(4000);
-    }
+      if (!overview) return;
 
-    throw new Error("セクション取得に失敗しました。");
-  };
+      setSectionLoading(sectionId);
+      setReportLoadingLabel(FORTUNE_SECTION_META[sectionId].loading);
+
+      try {
+        const response = await fetchFortuneWithRetry(
+          "/api/fortune-section",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              section: sectionId,
+              data: fortuneData,
+              priorSummaries: buildPriorSummaries(overview, sectionResults),
+            }),
+          },
+          () => setReportLoadingLabel(GEMINI_RETRY_MESSAGE)
+        );
+
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          const detail = [errJson.error, errJson.hint].filter(Boolean).join(" ");
+          throw new Error(detail || `${FORTUNE_SECTION_META[sectionId].title}の生成に失敗しました。`);
+        }
+
+        const sectionJson = await response.json();
+        const result: FortuneSectionResult = {
+          fullText: sectionJson.fullText,
+          summary: sectionJson.summary,
+        };
+
+        setSectionResults((prev) => ({ ...prev, [sectionId]: result }));
+        saveCachedSection(cacheKey, sectionId, result);
+      } catch (err: unknown) {
+        console.error(err);
+        const message = err instanceof Error ? err.message : "セクション生成に失敗しました。";
+        setErrorMsg(message);
+      } finally {
+        setSectionLoading(null);
+        setReportLoadingLabel(null);
+      }
+    },
+    [cacheKey, fortuneData, overview, sectionLoading, sectionResults]
+  );
+
+  const handleReportTabChange = useCallback(
+    (tab: ReportTabId) => {
+      setReportTab(tab);
+      if (tab !== "overview") {
+        void loadFortuneSection(tab);
+      }
+    },
+    [loadFortuneSection]
+  );
 
   const handleSynthesizeDestiny = async () => {
     setLoading(true);
     setErrorMsg("");
-    setReport("");
+    setOverview("");
+    setSectionResults({});
+    setReportTab("overview");
     setReportLoadingLabel(null);
     setChatHistory([]);
+    clearCachedSession(cacheKey);
 
     try {
-      setReportLoadingLabel(formatFortuneProgress(FORTUNE_OVERVIEW_LOADING, 1, FORTUNE_TOTAL_STEPS));
+      setReportLoadingLabel(FORTUNE_OVERVIEW_LOADING);
 
-      const response = await fetchWithTimeout("/api/fortune", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fortuneData),
-      });
+      const response = await fetchFortuneWithRetry(
+        "/api/fortune",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fortuneData),
+        },
+        () => setReportLoadingLabel(GEMINI_RETRY_MESSAGE)
+      );
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
@@ -261,44 +326,19 @@ export default function App() {
       }
 
       const resJson = await response.json();
-      let fullReport: string = resJson.report;
-      const priorSummaries: PriorSummaries = { overview: fullReport };
+      const overviewText: string = resJson.report;
 
-      setReport(fullReport);
+      setOverview(overviewText);
+      saveCachedOverview(cacheKey, overviewText);
       setChatHistory([createWelcomeChatMessage()]);
       setActiveTab("report");
-      setLoading(false);
       setTimeout(() => scrollTo("tab-panels-viewport"), 80);
-
-      for (let i = 0; i < FORTUNE_SECTION_ORDER.length; i++) {
-        const sectionId = FORTUNE_SECTION_ORDER[i];
-        const meta = FORTUNE_SECTION_META[sectionId];
-        const step = i + 2;
-
-        setReportLoadingLabel(formatFortuneProgress(meta.loading, step, FORTUNE_TOTAL_STEPS));
-        await sleep(FORTUNE_SECTION_DELAY_MS);
-
-        const sectionRes = await fetchFortuneSection(sectionId, priorSummaries);
-
-        if (!sectionRes.ok) {
-          const errJson = await sectionRes.json().catch(() => ({}));
-          const detail = [errJson.error, errJson.hint].filter(Boolean).join(" ");
-          throw new Error(detail || `${meta.title}の生成に失敗しました。`);
-        }
-
-        const sectionJson = await sectionRes.json();
-        priorSummaries[sectionId] = sectionJson.summary;
-        fullReport += `\n\n${meta.title}\n\n${sectionJson.fullText}`;
-        setReport(fullReport);
-      }
-
-      setReportLoadingLabel(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setErrorMsg(err.message || "ネットワークに接続できませんでした。");
-      setReportLoadingLabel(null);
+      setErrorMsg(err instanceof Error ? err.message : "ネットワークに接続できませんでした。");
     } finally {
       setLoading(false);
+      setReportLoadingLabel(null);
     }
   };
 
@@ -512,7 +552,7 @@ export default function App() {
                   )}
                 </button>
                 <p className="text-[10px] text-neutral-500 mt-2.5 font-sans">
-                  ※ 総合サマリーの後、各占術を1つずつ順番に生成します（全体で約2〜3分）。混雑時は自動で待機・再試行します。
+                  ※ まず総合鑑定を生成します。各占術の詳細は鑑定書タブを開いたときに個別に生成されます。
                 </p>
               </div>
 
@@ -551,6 +591,12 @@ export default function App() {
                     <ProfileSaveLoad {...profileSaveLoadProps} compact />
                   </div>
                   <CounselingRoom
+                    overview={overview}
+                    sectionResults={sectionResults}
+                    reportTab={reportTab}
+                    onReportTabChange={handleReportTabChange}
+                    onRequestSection={loadFortuneSection}
+                    sectionLoading={sectionLoading}
                     report={report}
                     data={fortuneData}
                     chatHistory={chatHistory}

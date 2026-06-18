@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-export const FORTUNE_OVERVIEW_MAX_TOKENS = 600;
+export const FORTUNE_OVERVIEW_MAX_TOKENS = 1200;
 export const FORTUNE_SECTION_MAX_TOKENS = 1400;
 export const FORTUNE_TIMEOUT_MS = 30000;
 
@@ -61,12 +61,17 @@ export function toApiErrorResponse(error: unknown): { status: number; body: ApiE
     };
   }
 
-  if (message.includes("503") || message.includes("high demand") || message.includes("UNAVAILABLE")) {
+  if (
+    message.includes("503") ||
+    message.includes("high demand") ||
+    message.includes("UNAVAILABLE") ||
+    message.includes("RESOURCE_EXHAUSTED")
+  ) {
     return {
       status: 503,
       body: {
         error: "Geminiモデルが現在混雑しています。",
-        code: "GEMINI_UNAVAILABLE",
+        code: message.includes("RESOURCE_EXHAUSTED") ? "RESOURCE_EXHAUSTED" : "GEMINI_UNAVAILABLE",
         hint: "1〜2分待ってから再度お試しください。",
       },
     };

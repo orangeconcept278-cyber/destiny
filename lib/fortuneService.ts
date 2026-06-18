@@ -72,12 +72,12 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
   const ctx = buildFortuneContext(input);
 
   const systemInstruction = `
-あなたは統合鑑定者です。4占術を横断する総合鑑定の「冒頭サマリー」を書きます。
-基準年:${ctx.currentYear}年。出力は400〜600字。簡潔だが格調高く。
+あなたは統合鑑定者です。4占術を横断する「総合鑑定」を書きます。
+基準年:${ctx.currentYear}年。出力は800〜1200字。簡潔だが格調高く。
 `;
 
   const prompt = `
-【総合鑑定サマリー】以下データから、続く詳細セクションの導入となるサマリーを生成してください。
+【総合鑑定】以下データから、相談者向けの総合鑑定を生成してください。
 
 ### 指定見出し
 ## 統合鑑定サマリー
@@ -92,9 +92,21 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 ### いま最も意識すべきテーマ
 （2文）
 
+### 時系列の未来時間割
+今後数年間の運気の流れをロードマップとして提示します。
+${ctx.roadmapHeadings}
+（各年の見出しをそのまま使用し、各年3〜4文で運気の流れ・テーマ・注意点を記述）
+
+### 相談者の問いへの統合回答
+（2〜3文）
+
 【相談者】${ctx.basicBlock}
 【悩み】${ctx.concerns}
 【問い】${ctx.questions}
+【過去イベント】
+${ctx.pastEvents}
+【未来メモ】
+${ctx.futureNotes}
 【西洋要点】${ctx.westernBlock}
 【インド要点】${ctx.vedicBlock}
 【四柱要点】${ctx.baziBlock}

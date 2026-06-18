@@ -5,8 +5,21 @@ import ReactMarkdown from "react-markdown";
 import { printSession } from "../utils/printSession";
 import { getCurrentDateLabel } from "../utils/dateUtils";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { ReportTabId } from "../utils/buildReport";
+import {
+  LAZY_FORTUNE_SECTION_ORDER,
+  REPORT_TAB_LABELS,
+  FortuneSectionId,
+} from "../../lib/fortuneSections";
+import { FortuneSectionResult } from "../../lib/fortuneTypes";
 
 interface CounselingRoomProps {
+  overview: string;
+  sectionResults: Partial<Record<FortuneSectionId, FortuneSectionResult>>;
+  reportTab: ReportTabId;
+  onReportTabChange: (tab: ReportTabId) => void;
+  onRequestSection: (sectionId: FortuneSectionId) => void;
+  sectionLoading: FortuneSectionId | null;
   report: string;
   data: AllFortuneData;
   chatHistory: ChatMessage[];
@@ -17,7 +30,48 @@ interface CounselingRoomProps {
   reportLoadingLabel?: string | null;
 }
 
+const REPORT_TABS: ReportTabId[] = ["overview", ...LAZY_FORTUNE_SECTION_ORDER];
+
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="text-base font-bold text-natural-olive pb-2 border-b border-natural-border tracking-tight mt-6 first:mt-0 font-serif">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="text-xs font-bold text-neutral-800 mt-5 mb-2 flex items-center gap-2 font-serif border-l-2 border-natural-olive pl-2">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="text-xs font-bold text-natural-olive-dark mt-4 mb-1">{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-xs leading-relaxed text-natural-text mb-3 font-medium">{children}</p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="list-disc pl-5 my-2 space-y-1 text-xs text-neutral-600">{children}</ul>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="leading-relaxed text-xs">{children}</li>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="text-natural-olive font-bold">{children}</strong>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-2 border-natural-olive bg-natural-light-cream/40 px-4 py-2 my-3 rounded-r text-xs italic text-neutral-600 font-serif">
+      {children}
+    </blockquote>
+  ),
+};
+
 export default function CounselingRoom({
+  overview,
+  sectionResults,
+  reportTab,
+  onReportTabChange,
+  onRequestSection,
+  sectionLoading,
   report,
   data,
   chatHistory,
@@ -38,6 +92,11 @@ export default function CounselingRoom({
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [chatHistory, loading]);
+
+  const activeContent =
+    reportTab === "overview"
+      ? overview
+      : sectionResults[reportTab]?.fullText ?? "";
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,11 +150,12 @@ export default function CounselingRoom({
       };
 
       onChatHistoryChange([...nextHistory, aiMessage]);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "通信エラー";
       const errorMessage: ChatMessage = {
         id: Math.random().toString(36).substring(2, 9),
         role: "model",
-        text: `【接続エラー】申し訳ございません。通信状態が一時的に不安定です。再送をお試しください。（エラー原因: ${err.message}）`,
+        text: `【接続エラー】申し訳ございません。通信状態が一時的に不安定です。再送をお試しください。（エラー原因: ${message}）`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       onChatHistoryChange([...nextHistory, errorMessage]);
@@ -146,235 +206,261 @@ export default function CounselingRoom({
           </button>
         </div>
 
-      <div
-        id="print-report-section"
-        className={`flex-1 bg-white border border-natural-border rounded-2xl flex flex-col min-h-[65vh] xl:min-h-0 xl:h-full overflow-hidden shadow-sm ${
-          mobilePanel === "report" ? "flex" : "hidden xl:flex"
-        }`}
-      >
-        <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Compass className="w-5 h-5 text-natural-olive shrink-0" id="compass-report" />
-            <h3 className="font-bold text-natural-olive text-sm font-serif tracking-wide">
-              統合鑑定書
-            </h3>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <button
-              onClick={onDownloadMarkdown}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
-              title="鑑定書とカウンセリングをMarkdownでダウンロード"
-            >
-              <Download className="w-3 h-3" />
-              MD
-            </button>
-            <button
-              onClick={onDownloadJson}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
-              title="全データをJSONでダウンロード"
-            >
-              <Download className="w-3 h-3" />
-              JSON
-            </button>
-            <button
-              onClick={() => printSession("report", profileName)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
-              title="鑑定書のみ印刷（PDF保存可）"
-            >
-              <Printer className="w-3 h-3" />
-              印刷
-            </button>
-            <button
-              onClick={() => printSession("full", profileName)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-olive hover:opacity-90 text-white rounded-lg transition-all"
-              title="鑑定書とカウンセリングを印刷"
-            >
-              <Printer className="w-3 h-3" />
-              印刷+対話
-            </button>
-          </div>
-        </div>
-
         <div
-          id="print-report-content"
-          className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 markdown-body text-natural-text font-sans select-text bg-natural-light-cream/5"
+          id="print-report-section"
+          className={`flex-1 bg-white border border-natural-border rounded-2xl flex flex-col min-h-[65vh] xl:min-h-0 xl:h-full overflow-hidden shadow-sm ${
+            mobilePanel === "report" ? "flex" : "hidden xl:flex"
+          }`}
         >
-          <ReactMarkdown
-            components={{
-              h1: ({ children }) => (
-                <h1 className="text-base font-bold text-natural-olive pb-2 border-b border-natural-border tracking-tight mt-6 first:mt-0 font-serif">
-                  {children}
-                </h1>
-              ),
-              h2: ({ children }) => (
-                <h2 className="text-xs font-bold text-neutral-800 mt-5 mb-2 flex items-center gap-2 font-serif border-l-2 border-natural-olive pl-2">
-                  {children}
-                </h2>
-              ),
-              h3: ({ children }) => (
-                <h3 className="text-xs font-bold text-natural-olive-dark mt-4 mb-1">
-                  {children}
-                </h3>
-              ),
-              p: ({ children }) => (
-                <p className="text-xs leading-relaxed text-natural-text mb-3 font-medium">
-                  {children}
-                </p>
-              ),
-              ul: ({ children }) => (
-                <ul className="list-disc pl-5 my-2 space-y-1 text-xs text-neutral-600">
-                  {children}
-                </ul>
-              ),
-              li: ({ children }) => (
-                <li className="leading-relaxed text-xs">{children}</li>
-              ),
-              strong: ({ children }) => (
-                <strong className="text-natural-olive font-bold">{children}</strong>
-              ),
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-natural-olive bg-natural-light-cream/40 px-4 py-2 my-3 rounded-r text-xs italic text-neutral-600 font-serif">
-                  {children}
-                </blockquote>
-              ),
-            }}
-          >
-            {report}
-          </ReactMarkdown>
-
-          {reportLoadingLabel && (
-            <div className="no-print mt-6 p-4 rounded-xl border border-natural-border bg-white shadow-sm flex items-center gap-3">
-              <Loader className="w-5 h-5 text-natural-olive animate-spin shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-natural-olive">{reportLoadingLabel}</p>
-                <p className="text-[10px] text-neutral-500 mt-1">
-                  各占術を1つずつ順番に深掘りしています。完了までしばらくお待ちください…
-                </p>
-              </div>
+          <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Compass className="w-5 h-5 text-natural-olive shrink-0" id="compass-report" />
+              <h3 className="font-bold text-natural-olive text-sm font-serif tracking-wide">
+                統合鑑定書
+              </h3>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div
-        id="print-chat-section"
-        className={`xl:w-[480px] bg-white border border-natural-border rounded-2xl flex flex-col min-h-[65vh] xl:min-h-0 xl:h-full overflow-hidden shadow-sm ${
-          mobilePanel === "chat" ? "flex" : "hidden xl:flex"
-        }`}
-      >
-        <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-natural-olive animate-ping shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h4 className="font-bold text-neutral-800 text-sm font-serif truncate">
-              対話型カウンセリングルーム
-            </h4>
-            <p className="text-[10px] text-neutral-500 mt-0.5 font-sans">
-              対話内容はプロフィール保存・ダウンロードに含まれます
-            </p>
-          </div>
-        </div>
-
-        <div className="print-only mb-4">
-          <h2 className="text-lg font-serif font-bold text-natural-olive border-b border-natural-border pb-2">
-            カウンセリング対話記録
-          </h2>
-        </div>
-
-        <div
-          id="print-chat-content"
-          ref={chatContainerRef}
-          className="flex-1 overflow-y-auto p-4 space-y-4 bg-natural-light-cream/10"
-        >
-          {chatHistory.map((msg) => {
-            const isModel = msg.role === "model";
-            return (
-              <div
-                key={msg.id}
-                className={`print-chat-message flex gap-3 max-w-[85%] ${
-                  isModel ? "mr-auto" : "ml-auto flex-row-reverse"
-                }`}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <button
+                onClick={onDownloadMarkdown}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
+                title="鑑定書とカウンセリングをMarkdownでダウンロード"
               >
-                <div
-                  className={`no-print w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    isModel
-                      ? "bg-natural-light-cream border border-natural-border text-natural-olive"
-                      : "bg-neutral-200 text-neutral-600"
-                  }`}
-                >
-                  {isModel ? <Sparkles className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                </div>
+                <Download className="w-3 h-3" />
+                MD
+              </button>
+              <button
+                onClick={onDownloadJson}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
+                title="全データをJSONでダウンロード"
+              >
+                <Download className="w-3 h-3" />
+                JSON
+              </button>
+              <button
+                onClick={() => printSession("report", profileName)}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-light-cream hover:bg-natural-cream text-natural-olive border border-natural-border rounded-lg transition-all"
+                title="鑑定書のみ印刷（PDF保存可）"
+              >
+                <Printer className="w-3 h-3" />
+                印刷
+              </button>
+              <button
+                onClick={() => printSession("full", profileName)}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold bg-natural-olive hover:opacity-90 text-white rounded-lg transition-all"
+                title="鑑定書とカウンセリングを印刷"
+              >
+                <Printer className="w-3 h-3" />
+                印刷+対話
+              </button>
+            </div>
+          </div>
 
-                <div className="space-y-1">
-                  <div
-                    className={`print-chat-bubble p-3 rounded-2xl text-xs leading-relaxed font-sans ${
-                      isModel
-                        ? "print-chat-bubble-model bg-white border border-natural-border text-natural-text rounded-tl-none shadow-sm"
-                        : "print-chat-bubble-user bg-natural-olive text-white rounded-tr-none shadow-sm font-medium"
+          <div className="no-print px-3 py-2 border-b border-natural-border bg-natural-light-cream/20 overflow-x-auto">
+            <div className="flex gap-1 min-w-max">
+              {REPORT_TABS.map((tabId) => {
+                const isActive = reportTab === tabId;
+                const isLoaded =
+                  tabId === "overview" ? Boolean(overview) : Boolean(sectionResults[tabId]);
+                const isLoading = tabId !== "overview" && sectionLoading === tabId;
+
+                return (
+                  <button
+                    key={tabId}
+                    type="button"
+                    onClick={() => onReportTabChange(tabId)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1 ${
+                      isActive
+                        ? "bg-natural-olive text-white"
+                        : "bg-white text-neutral-600 border border-natural-border hover:border-natural-olive/40"
                     }`}
                   >
-                    {isModel ? (
-                      <ReactMarkdown
-                        components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed text-xs">{children}</p>,
-                          ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 mb-2 last:mb-0 text-xs">{children}</ul>,
-                          li: ({ children }) => <li className="leading-relaxed text-xs">{children}</li>,
-                          strong: ({ children }) => <strong className="text-natural-olive font-bold">{children}</strong>,
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
-                    ) : (
-                      msg.text
+                    {isLoading && <Loader className="w-3 h-3 animate-spin" />}
+                    {REPORT_TAB_LABELS[tabId]}
+                    {isLoaded && tabId !== "overview" && !isLoading && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            id="print-report-content"
+            className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 markdown-body text-natural-text font-sans select-text bg-natural-light-cream/5"
+          >
+            {reportTab !== "overview" && !activeContent && sectionLoading === reportTab ? (
+              <div className="no-print flex flex-col items-center justify-center py-16 text-center gap-3">
+                <Loader className="w-8 h-8 text-natural-olive animate-spin" />
+                <p className="text-xs font-semibold text-natural-olive">
+                  {REPORT_TAB_LABELS[reportTab]}を生成中…
+                </p>
+                {reportLoadingLabel && (
+                  <p className="text-[10px] text-neutral-500">{reportLoadingLabel}</p>
+                )}
+              </div>
+            ) : reportTab !== "overview" && !activeContent ? (
+              <div className="no-print flex flex-col items-center justify-center py-16 text-center gap-3">
+                <p className="text-xs text-neutral-600">
+                  {REPORT_TAB_LABELS[reportTab]}の詳細鑑定は未生成です。
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onRequestSection(reportTab)}
+                  className="text-xs font-semibold px-4 py-2 bg-natural-olive text-white rounded-lg hover:opacity-90"
+                >
+                  詳細鑑定を生成する
+                </button>
+              </div>
+            ) : (
+              <ReactMarkdown components={markdownComponents}>{activeContent}</ReactMarkdown>
+            )}
+
+            {reportLoadingLabel && (reportTab === "overview" || activeContent) && (
+              <div className="no-print mt-6 p-4 rounded-xl border border-natural-border bg-white shadow-sm flex items-center gap-3">
+                <Loader className="w-5 h-5 text-natural-olive animate-spin shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-natural-olive">{reportLoadingLabel}</p>
+                  <p className="text-[10px] text-neutral-500 mt-1">
+                    混雑時は自動で再試行します。しばらくお待ちください…
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="print-only">
+              <ReactMarkdown components={markdownComponents}>{report}</ReactMarkdown>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="print-chat-section"
+          className={`xl:w-[480px] bg-white border border-natural-border rounded-2xl flex flex-col min-h-[65vh] xl:min-h-0 xl:h-full overflow-hidden shadow-sm ${
+            mobilePanel === "chat" ? "flex" : "hidden xl:flex"
+          }`}
+        >
+          <div className="no-print bg-white px-5 py-4 border-b border-natural-border flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-natural-olive animate-ping shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-neutral-800 text-sm font-serif truncate">
+                対話型カウンセリングルーム
+              </h4>
+              <p className="text-[10px] text-neutral-500 mt-0.5 font-sans">
+                対話内容はプロフィール保存・ダウンロードに含まれます
+              </p>
+            </div>
+          </div>
+
+          <div className="print-only mb-4">
+            <h2 className="text-lg font-serif font-bold text-natural-olive border-b border-natural-border pb-2">
+              カウンセリング対話記録
+            </h2>
+          </div>
+
+          <div
+            id="print-chat-content"
+            ref={chatContainerRef}
+            className="flex-1 overflow-y-auto p-4 space-y-4 bg-natural-light-cream/10"
+          >
+            {chatHistory.map((msg) => {
+              const isModel = msg.role === "model";
+              return (
+                <div
+                  key={msg.id}
+                  className={`print-chat-message flex gap-3 max-w-[85%] ${
+                    isModel ? "mr-auto" : "ml-auto flex-row-reverse"
+                  }`}
+                >
+                  <div
+                    className={`no-print w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                      isModel
+                        ? "bg-natural-light-cream border border-natural-border text-natural-olive"
+                        : "bg-neutral-200 text-neutral-600"
+                    }`}
+                  >
+                    {isModel ? <Sparkles className="w-4 h-4" /> : <User className="w-4 h-4" />}
                   </div>
-                  <span className={`block text-[9px] text-neutral-400 ${isModel ? "text-left pl-1" : "text-right pr-1"}`}>
-                    {msg.timestamp}
+
+                  <div className="space-y-1">
+                    <div
+                      className={`print-chat-bubble p-3 rounded-2xl text-xs leading-relaxed font-sans ${
+                        isModel
+                          ? "print-chat-bubble-model bg-white border border-natural-border text-natural-text rounded-tl-none shadow-sm"
+                          : "print-chat-bubble-user bg-natural-olive text-white rounded-tr-none shadow-sm font-medium"
+                      }`}
+                    >
+                      {isModel ? (
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => (
+                              <p className="mb-2 last:mb-0 leading-relaxed text-xs">{children}</p>
+                            ),
+                            ul: ({ children }) => (
+                              <ul className="list-disc pl-4 space-y-1 mb-2 last:mb-0 text-xs">{children}</ul>
+                            ),
+                            li: ({ children }) => <li className="leading-relaxed text-xs">{children}</li>,
+                            strong: ({ children }) => (
+                              <strong className="text-natural-olive font-bold">{children}</strong>
+                            ),
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      ) : (
+                        msg.text
+                      )}
+                    </div>
+                    <span
+                      className={`block text-[9px] text-neutral-400 ${isModel ? "text-left pl-1" : "text-right pr-1"}`}
+                    >
+                      {msg.timestamp}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {loading && (
+              <div className="flex gap-3 max-w-[85%] mr-auto">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-natural-light-cream border border-natural-border text-natural-olive">
+                  <Loader className="w-4 h-4 animate-spin" />
+                </div>
+                <div className="bg-white border border-natural-border p-3 rounded-2xl rounded-tl-none text-xs text-neutral-500 flex items-center gap-2 shadow-sm">
+                  <span>鑑定天体を再照合中</span>
+                  <span className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </span>
                 </div>
               </div>
-            );
-          })}
+            )}
+            <div ref={chatEndRef} />
+          </div>
 
-          {loading && (
-            <div className="flex gap-3 max-w-[85%] mr-auto">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-natural-light-cream border border-natural-border text-natural-olive">
-                <Loader className="w-4 h-4 animate-spin" />
-              </div>
-              <div className="bg-white border border-natural-border p-3 rounded-2xl rounded-tl-none text-xs text-neutral-500 flex items-center gap-2 shadow-sm">
-                <span>鑑定天体を再照合中</span>
-                <span className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                </span>
-              </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        <form
-          onSubmit={handleSendMessage}
-          className="no-print p-3 bg-white border-t border-natural-border flex items-center gap-2"
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={loading}
-            placeholder={loading ? "応答を受信中..." : "処方について追加質問を入力..."}
-            className="flex-1 bg-natural-light-cream/30 border border-natural-border focus:border-natural-olive rounded-xl px-4 py-2.5 text-xs text-natural-text placeholder-neutral-400 focus:outline-none transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || loading}
-            className="p-2.5 bg-natural-olive hover:opacity-90 disabled:opacity-45 disabled:pointer-events-none text-white rounded-xl transition-opacity shrink-0 cursor-pointer"
-            id="btn-chat-send"
+          <form
+            onSubmit={handleSendMessage}
+            className="no-print p-3 bg-white border-t border-natural-border flex items-center gap-2"
           >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </div>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={loading}
+              placeholder={loading ? "応答を受信中..." : "処方について追加質問を入力..."}
+              className="flex-1 bg-natural-light-cream/30 border border-natural-border focus:border-natural-olive rounded-xl px-4 py-2.5 text-xs text-natural-text placeholder-neutral-400 focus:outline-none transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading}
+              className="p-2.5 bg-natural-olive hover:opacity-90 disabled:opacity-45 disabled:pointer-events-none text-white rounded-xl transition-opacity shrink-0 cursor-pointer"
+              id="btn-chat-send"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
