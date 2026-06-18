@@ -38,7 +38,7 @@ import { AppTab } from "./types/layout";
 import { FORTUNE_SECTION_META, FORTUNE_OVERVIEW_LOADING } from "../lib/fortuneSections";
 import type { FortuneSectionId } from "../lib/fortuneSections";
 import type { FortuneSectionResult } from "../lib/fortuneTypes";
-import { normalizeSectionResult } from "../lib/sectionParse";
+import { coerceFortuneSectionResult } from "../lib/sectionParse.js";
 import {
   Compass,
   Heart,
@@ -242,7 +242,7 @@ export default function App() {
       if (cached?.sections[sectionId]) {
         setSectionResults((prev) => ({
           ...prev,
-          [sectionId]: normalizeSectionResult(cached.sections[sectionId]!),
+          [sectionId]: coerceFortuneSectionResult(cached.sections[sectionId]!),
         }));
         return;
       }
@@ -275,10 +275,7 @@ export default function App() {
         }
 
         const sectionJson = await response.json();
-        const result = normalizeSectionResult({
-          fullText: sectionJson.fullText,
-          summary: sectionJson.summary,
-        });
+        const result = coerceFortuneSectionResult(sectionJson);
 
         setSectionResults((prev) => ({ ...prev, [sectionId]: result }));
         saveCachedSection(cacheKey, sectionId, result);

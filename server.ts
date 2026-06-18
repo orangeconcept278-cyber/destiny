@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { toApiErrorResponse, withFortuneTimeout } from "./lib/gemini.js";
 import { generateFortuneChat, generateFortuneReport, generateFortuneSection } from "./lib/fortuneService.js";
 import { isFortuneSectionId } from "./lib/fortuneSections.js";
+import { coerceFortuneSectionResult } from "./lib/sectionParse.js";
 
 dotenv.config({ override: true });
 
@@ -43,11 +44,13 @@ async function startServer() {
       });
     }
     try {
-      const result = await withFortuneTimeout(
-        generateFortuneSection(
-          section,
-          data ?? {},
-          priorSummaries && typeof priorSummaries === "object" ? priorSummaries : undefined
+      const result = coerceFortuneSectionResult(
+        await withFortuneTimeout(
+          generateFortuneSection(
+            section,
+            data ?? {},
+            priorSummaries && typeof priorSummaries === "object" ? priorSummaries : undefined
+          )
         )
       );
       res.json({ section, fullText: result.fullText, summary: result.summary });

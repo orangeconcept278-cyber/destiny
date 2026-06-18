@@ -16,13 +16,15 @@ const SECTION_STYLE = `
 病気・死期の断定は禁止。前セクションの要約と矛盾しないこと。
 `;
 
-const JSON_OUTPUT_RULE = `
+const SECTION_OUTPUT_RULE = `
 【出力形式（厳守）】
-必ず次のJSONのみを出力すること。前置き・後書き・マークダウンコードブロックは禁止。
-{
-  "fullText": "詳細鑑定本文（1000〜2000字、見出しは###を使用可）",
-  "summary": "次の占術へ渡す要約（200〜300字、結論とキーワードのみ）"
-}
+次の2ブロックのみを出力すること。JSON・コードブロック・前置きは禁止。
+
+<<<SUMMARY>>>
+（200〜300字の要約。結論とキーワードのみ。Markdown見出しは不要）
+
+<<<FULLTEXT>>>
+（1000〜2000字の詳細鑑定本文。見出しは###や####を使用可）
 `;
 
 function formatPriorSummaries(summaries?: PriorSummaries): string {
@@ -119,7 +121,7 @@ export async function generateFortuneSection(
   const systemInstruction = `
 あなたは統合鑑定者です。今回は「${section}」パートのみを深く書きます。
 ${SECTION_STYLE}
-${JSON_OUTPUT_RULE}
+${SECTION_OUTPUT_RULE}
 基準年:${ctx.currentYear}年。
 `;
 

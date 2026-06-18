@@ -12,7 +12,7 @@ import {
   FortuneSectionId,
 } from "../../lib/fortuneSections";
 import { FortuneSectionResult } from "../../lib/fortuneTypes";
-import { normalizeSectionResult } from "../../lib/sectionParse";
+import { coerceFortuneSectionResult } from "../../lib/sectionParse";
 
 interface CounselingRoomProps {
   overview: string;
@@ -46,6 +46,9 @@ const markdownComponents = {
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
     <h3 className="text-xs font-bold text-natural-olive-dark mt-4 mb-1">{children}</h3>
+  ),
+  h4: ({ children }: { children?: React.ReactNode }) => (
+    <h4 className="text-[11px] font-bold text-neutral-700 mt-3 mb-1">{children}</h4>
   ),
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="text-xs leading-relaxed text-natural-text mb-3 font-medium">{children}</p>
@@ -94,13 +97,16 @@ export default function CounselingRoom({
     container.scrollTop = container.scrollHeight;
   }, [chatHistory, loading]);
 
-  const activeContent =
+  const activeSection: FortuneSectionResult | null =
     reportTab === "overview"
-      ? overview
-      : normalizeSectionResult({
-          fullText: sectionResults[reportTab]?.fullText ?? "",
-          summary: sectionResults[reportTab]?.summary ?? "",
-        }).fullText;
+      ? null
+      : coerceFortuneSectionResult({
+          fullText: sectionResults[reportTab as FortuneSectionId]?.fullText ?? "",
+          summary: sectionResults[reportTab as FortuneSectionId]?.summary ?? "",
+        });
+
+  const activeFullText = activeSection?.fullText ?? "";
+  const activeSummary = activeSection?.summary ?? "";
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,7 +299,7 @@ export default function CounselingRoom({
             id="print-report-content"
             className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 markdown-body text-natural-text font-sans select-text bg-natural-light-cream/5"
           >
-            {reportTab !== "overview" && !activeContent && sectionLoading === reportTab ? (
+            {reportTab !== "overview" && !activeFullText && sectionLoading === reportTab ? (
               <div className="no-print flex flex-col items-center justify-center py-16 text-center gap-3">
                 <Loader className="w-8 h-8 text-natural-olive animate-spin" />
                 <p className="text-xs font-semibold text-natural-olive">
@@ -303,7 +309,7 @@ export default function CounselingRoom({
                   <p className="text-[10px] text-neutral-500">{reportLoadingLabel}</p>
                 )}
               </div>
-            ) : reportTab !== "overview" && !activeContent ? (
+            ) : reportTab !== "overview" && !activeFullText ? (
               <div className="no-print flex flex-col items-center justify-center py-16 text-center gap-3">
                 <p className="text-xs text-neutral-600">
                   {REPORT_TAB_LABELS[reportTab]}の詳細鑑定は未生成です。
@@ -316,11 +322,23 @@ export default function CounselingRoom({
                   詳細鑑定を生成する
                 </button>
               </div>
+            ) : reportTab === "overview" ? (
+              <ReactMarkdown components={markdownComponents}>{overview}</ReactMarkdown>
             ) : (
-              <ReactMarkdown components={markdownComponents}>{activeContent}</ReactMarkdown>
+              <div className="space-y-4">
+                {activeSummary && (
+                  <div className="no-print rounded-xl border border-natural-olive/30 bg-natural-light-cream/50 px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-natural-olive mb-1.5">
+                      要約
+                    </p>
+                    <p className="text-xs leading-relaxed text-natural-text">{activeSummary}</p>
+                  </div>
+                )}
+                <ReactMarkdown components={markdownComponents}>{activeFullText}</ReactMarkdown>
+              </div>
             )}
 
-            {reportLoadingLabel && (reportTab === "overview" || activeContent) && (
+            {reportLoadingLabel && (reportTab === "overview" ? overview : activeFullText) && (
               <div className="no-print mt-6 p-4 rounded-xl border border-natural-border bg-white shadow-sm flex items-center gap-3">
                 <Loader className="w-5 h-5 text-natural-olive animate-spin shrink-0" />
                 <div>

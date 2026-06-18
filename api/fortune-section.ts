@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { toApiErrorResponse, withFortuneTimeout } from "../lib/gemini.js";
 import { generateFortuneSection } from "../lib/fortuneService.js";
 import { isFortuneSectionId } from "../lib/fortuneSections.js";
+import { coerceFortuneSectionResult } from "../lib/sectionParse.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -19,11 +20,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const result = await withFortuneTimeout(
-      generateFortuneSection(
-        section,
-        data ?? {},
-        priorSummaries && typeof priorSummaries === "object" ? priorSummaries : undefined
+    const result = coerceFortuneSectionResult(
+      await withFortuneTimeout(
+        generateFortuneSection(
+          section,
+          data ?? {},
+          priorSummaries && typeof priorSummaries === "object" ? priorSummaries : undefined
+        )
       )
     );
     return res.status(200).json({ section, fullText: result.fullText, summary: result.summary });
