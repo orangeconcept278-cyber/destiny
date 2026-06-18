@@ -215,7 +215,7 @@ export default function CounselingRoom({
               <div>
                 <p className="text-xs font-semibold text-natural-olive">{reportLoadingLabel}</p>
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  各占術を順番に深掘りしています。完了までしばらくお待ちください…
+                  各占術を1つずつ順番に深掘りしています。完了までしばらくお待ちください…
                 </p>
               </div>
             </div>

@@ -6,7 +6,7 @@ export const FORTUNE_OVERVIEW_MAX_TOKENS = 800;
 export const FORTUNE_SECTION_MAX_TOKENS = 2000;
 export const FORTUNE_TIMEOUT_MS = 30000;
 
-const FORTUNE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"];
+const FORTUNE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash"];
 
 const CHAT_MODEL_FALLBACKS = [
   process.env.GEMINI_MODEL,
@@ -125,6 +125,10 @@ function getClient(): GoogleGenAI {
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function generateFortuneContent(options: {
   contents: string;
   systemInstruction: string;
@@ -135,21 +139,30 @@ export async function generateFortuneContent(options: {
   const maxOutputTokens = options.maxOutputTokens ?? FORTUNE_OVERVIEW_MAX_TOKENS;
 
   for (const model of FORTUNE_MODELS) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: options.contents,
-        config: {
-          systemInstruction: options.systemInstruction,
-          temperature: 0.45,
-          maxOutputTokens,
-        },
-      });
-      console.log(`[Gemini] 鑑定生成成功: model=${model} tokens=${maxOutputTokens}`);
-      return response;
-    } catch (error) {
-      lastError = error;
-      console.warn(`[Gemini] fortune model=${model} failed`);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: options.contents,
+          config: {
+            systemInstruction: options.systemInstruction,
+            temperature: 0.45,
+            maxOutputTokens,
+          },
+        });
+        console.log(`[Gemini] 鑑定生成成功: model=${model} tokens=${maxOutputTokens}`);
+        return response;
+      } catch (error) {
+        lastError = error;
+        if (isRetryableGeminiError(error) && attempt === 0) {
+          console.warn(`[Gemini] model=${model} リトライ待機（503/429）`);
+          await sleep(3500);
+          continue;
+        }
+        console.warn(`[Gemini] fortune model=${model} failed`);
+        await sleep(1500);
+        break;
+      }
     }
   }
 

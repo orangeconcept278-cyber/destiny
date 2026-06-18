@@ -26,7 +26,8 @@ import HeroSection from "./components/layout/HeroSection";
 import StepNav from "./components/layout/StepNav";
 import AppFooter from "./components/layout/AppFooter";
 import { AppTab } from "./types/layout";
-import { FORTUNE_SECTION_META, FORTUNE_SECTION_ORDER } from "../lib/fortuneSections";
+import { FORTUNE_SECTION_META, FORTUNE_SECTION_ORDER, FORTUNE_OVERVIEW_LOADING, FORTUNE_SECTION_DELAY_MS, FORTUNE_TOTAL_STEPS, formatFortuneProgress } from "../lib/fortuneSections";
+import { sleep } from "./utils/sleep";
 import {
   Compass,
   Heart,
@@ -210,7 +211,32 @@ export default function App() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Submit report synthesis request to endpoint (overview + sequential sections)
+  // Submit report synthesis request — overview then sections strictly in series
+  const fetchFortuneSection = async (
+    sectionId: (typeof FORTUNE_SECTION_ORDER)[number],
+    priorContext: string
+  ) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const sectionRes = await fetchWithTimeout("/api/fortune-section", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: sectionId,
+          data: fortuneData,
+          priorContext,
+        }),
+      });
+
+      if (sectionRes.ok || sectionRes.status !== 503 || attempt === 1) {
+        return sectionRes;
+      }
+
+      await sleep(4000);
+    }
+
+    throw new Error("セクション取得に失敗しました。");
+  };
+
   const handleSynthesizeDestiny = async () => {
     setLoading(true);
     setErrorMsg("");
@@ -219,6 +245,8 @@ export default function App() {
     setChatHistory([]);
 
     try {
+      setReportLoadingLabel(formatFortuneProgress(FORTUNE_OVERVIEW_LOADING, 1, FORTUNE_TOTAL_STEPS));
+
       const response = await fetchWithTimeout("/api/fortune", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,8 +260,7 @@ export default function App() {
       }
 
       const resJson = await response.json();
-      const overview: string = resJson.report;
-      let fullReport = overview;
+      let fullReport: string = resJson.report;
 
       setReport(fullReport);
       setChatHistory([createWelcomeChatMessage()]);
@@ -241,19 +268,15 @@ export default function App() {
       setLoading(false);
       setTimeout(() => scrollTo("tab-panels-viewport"), 80);
 
-      for (const sectionId of FORTUNE_SECTION_ORDER) {
+      for (let i = 0; i < FORTUNE_SECTION_ORDER.length; i++) {
+        const sectionId = FORTUNE_SECTION_ORDER[i];
         const meta = FORTUNE_SECTION_META[sectionId];
-        setReportLoadingLabel(meta.loading);
+        const step = i + 2;
 
-        const sectionRes = await fetchWithTimeout("/api/fortune-section", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            section: sectionId,
-            data: fortuneData,
-            overview,
-          }),
-        });
+        setReportLoadingLabel(formatFortuneProgress(meta.loading, step, FORTUNE_TOTAL_STEPS));
+        await sleep(FORTUNE_SECTION_DELAY_MS);
+
+        const sectionRes = await fetchFortuneSection(sectionId, fullReport);
 
         if (!sectionRes.ok) {
           const errJson = await sectionRes.json().catch(() => ({}));
@@ -486,7 +509,7 @@ export default function App() {
                   )}
                 </button>
                 <p className="text-[10px] text-neutral-500 mt-2.5 font-sans">
-                  ※ 総合サマリーの後、各占術セクションを順次読み込みます（全体で約1分）。詳細は相談ルームでも深掘りできます。
+                  ※ 総合サマリーの後、各占術を1つずつ順番に生成します（全体で約2〜3分）。混雑時は自動で待機・再試行します。
                 </p>
               </div>
 

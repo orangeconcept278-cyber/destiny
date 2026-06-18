@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" });
   }
 
-  const { section, data, overview } = req.body ?? {};
+  const { section, data, priorContext } = req.body ?? {};
 
   if (!isFortuneSectionId(section)) {
     return res.status(400).json({
@@ -20,7 +20,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const content = await withFortuneTimeout(
-      generateFortuneSection(section, data ?? {}, typeof overview === "string" ? overview : undefined)
+      generateFortuneSection(
+        section,
+        data ?? {},
+        typeof priorContext === "string" ? priorContext : undefined
+      )
     );
     return res.status(200).json({ section, content });
   } catch (error) {

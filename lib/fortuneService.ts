@@ -11,7 +11,18 @@ const SECTION_STYLE = `
 各論点は「①結論→②根拠（パラメータ引用）→③処方」の順で書く。
 専門用語には括弧で短い説明を添える。推測は【推測】と明記。
 病気・死期の断定は禁止。日本語・1200〜1800字程度。
+前セクションの鑑定文脈と矛盾しないこと。
 `;
+
+function truncatePriorContext(text: string, maxChars = 12000): string {
+  if (text.length <= maxChars) return text;
+  return `…（前半省略）\n\n${text.slice(-maxChars)}`;
+}
+
+function buildContextBlock(priorContext?: string): string {
+  if (!priorContext?.trim()) return "（なし）";
+  return truncatePriorContext(priorContext);
+}
 
 export async function generateFortuneReport(body: Record<string, unknown>): Promise<string> {
   const input = parseFortuneInput(body);
@@ -59,7 +70,7 @@ export async function generateFortuneReport(body: Record<string, unknown>): Prom
 export async function generateFortuneSection(
   section: FortuneSectionId,
   body: Record<string, unknown>,
-  overview?: string
+  priorContext?: string
 ): Promise<string> {
   if (!isFortuneSectionId(section)) {
     throw new Error(`INVALID_SECTION:${section}`);
@@ -67,11 +78,17 @@ export async function generateFortuneSection(
 
   const input = parseFortuneInput(body);
   const ctx = buildFortuneContext(input);
+  const contextBlock = buildContextBlock(priorContext);
 
   const systemInstruction = `
 あなたは統合鑑定者です。今回は「${section}」パートのみを深く書きます。
 ${SECTION_STYLE}
 基準年:${ctx.currentYear}年。
+`;
+
+  const contextSection = `
+【これまでの鑑定文脈（必ず整合すること）】
+${contextBlock}
 `;
 
   let prompt = "";
@@ -80,6 +97,7 @@ ${SECTION_STYLE}
     case "western":
       prompt = `
 【西洋占星術・詳細鑑定】トロピカル式。1200〜1800字。
+${contextSection}
 
 ### 含める内容
 - ASC/MCの意味と人生への影響
@@ -96,12 +114,14 @@ ${ctx.westernBlock}
     case "bazi":
       prompt = `
 【四柱推命・詳細鑑定】1200〜1800字。
+${contextSection}
 
 ### 含める内容
 - 日主の本質と格局
 - 調候用神・通変星・空亡の意味
 - 現在大運と${ctx.currentYear}年流年の読み
 - 仕事・対人の処方
+- 西洋占星術の示唆と接続できる点があれば1〜2文で言及
 
 【データ】${ctx.basicBlock}
 ${ctx.baziBlock}
@@ -111,12 +131,14 @@ ${ctx.baziBlock}
     case "jyotish":
       prompt = `
 【インド占星術（ジョーティシュ）・詳細鑑定】1200〜1800字。
+${contextSection}
 
 ### 含める内容
 - ラグナとナクシャトラの本質
 - ヨーガ・シャドバラ・アシュタカヴァルガ
 - 現在のダシャー期の意味と過ごし方
 - カルマ的課題と処方
+- これまでの西洋・四柱の示唆と接続できる点があれば言及
 
 【データ】${ctx.basicBlock}
 ${ctx.vedicBlock}
@@ -126,12 +148,14 @@ ${ctx.vedicBlock}
     case "numerology":
       prompt = `
 【数秘術・詳細鑑定】1200〜1800字。
+${contextSection}
 
 ### 含める内容
 - ライフパス・表現数・ソウルナンバーの統合読み
 - ${ctx.currentYear}年パーソナルイヤー${ctx.thisYearPy}の意味
 - 9年サイクル上の現在地
 - 金運・仕事・関係性への示唆
+- これまでの鑑定文脈との一致・補足
 
 【データ】${ctx.basicBlock}
 ${ctx.numerologyBlock}
@@ -141,16 +165,14 @@ ${ctx.numerologyBlock}
     case "integration":
       prompt = `
 【統合鑑定・マルチアライメント】1200〜1800字。
+${contextSection}
 
 ### 含める内容
-1. 三重/二重一致（2〜3件、確信度付き）
+1. 三重/二重一致（2〜3件、確信度付き）— 前セクションの内容を統合して述べる
 2. 答え合わせ（過去イベントがある場合）
 3. 未来時間割（次の見出しをそのまま使用、各年3〜4文）
 ${ctx.roadmapHeadings}
 4. 相談者の問いへの統合回答
-
-【総合サマリー（整合すること）】
-${overview || "（なし）"}
 
 【全データ】
 ${ctx.basicBlock}
