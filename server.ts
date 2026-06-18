@@ -3,7 +3,8 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { toApiErrorResponse, withFortuneTimeout } from "./lib/gemini.js";
-import { generateFortuneChat, generateFortuneReport } from "./lib/fortuneService.js";
+import { generateFortuneChat, generateFortuneReport, generateFortuneSection } from "./lib/fortuneService.js";
+import { isFortuneSectionId } from "./lib/fortuneSections.js";
 
 dotenv.config({ override: true });
 
@@ -22,9 +23,29 @@ async function startServer() {
   app.post("/api/fortune", async (req, res) => {
     try {
       const report = await withFortuneTimeout(generateFortuneReport(req.body));
-      res.json({ report, mode: "brief" });
+      res.json({ report, mode: "overview" });
     } catch (error) {
       console.error("Fortune generation error:", error);
+      const { status, body } = toApiErrorResponse(error);
+      res.status(status).json(body);
+    }
+  });
+
+  app.post("/api/fortune-section", async (req, res) => {
+    const { section, data, overview } = req.body ?? {};
+    if (!isFortuneSectionId(section)) {
+      return res.status(400).json({
+        error: "section は western / bazi / jyotish / numerology / integration のいずれかを指定してください。",
+        code: "INVALID_SECTION",
+      });
+    }
+    try {
+      const content = await withFortuneTimeout(
+        generateFortuneSection(section, data ?? {}, typeof overview === "string" ? overview : undefined)
+      );
+      res.json({ section, content });
+    } catch (error) {
+      console.error(`Fortune section error (${section}):`, error);
       const { status, body } = toApiErrorResponse(error);
       res.status(status).json(body);
     }

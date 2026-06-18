@@ -25,6 +25,7 @@ import HeroSection from "./components/layout/HeroSection";
 import StepNav from "./components/layout/StepNav";
 import AppFooter from "./components/layout/AppFooter";
 import { AppTab } from "./types/layout";
+import { FORTUNE_SECTION_META, FORTUNE_SECTION_ORDER } from "../lib/fortuneSections";
 import {
   Compass,
   Heart,
@@ -51,6 +52,7 @@ export default function App() {
 
   const [loading, setLoading] = useState<boolean>(false);
   const [report, setReport] = useState<string>("");
+  const [reportLoadingLabel, setReportLoadingLabel] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
@@ -207,11 +209,12 @@ export default function App() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // Submit report synthesis request to endpoint
+  // Submit report synthesis request to endpoint (overview + sequential sections)
   const handleSynthesizeDestiny = async () => {
     setLoading(true);
     setErrorMsg("");
     setReport("");
+    setReportLoadingLabel(null);
     setChatHistory([]);
 
     try {
@@ -228,13 +231,45 @@ export default function App() {
       }
 
       const resJson = await response.json();
-      setReport(resJson.report);
+      const overview: string = resJson.report;
+      let fullReport = overview;
+
+      setReport(fullReport);
       setChatHistory([createWelcomeChatMessage()]);
       setActiveTab("report");
+      setLoading(false);
       setTimeout(() => scrollTo("tab-panels-viewport"), 80);
+
+      for (const sectionId of FORTUNE_SECTION_ORDER) {
+        const meta = FORTUNE_SECTION_META[sectionId];
+        setReportLoadingLabel(meta.loading);
+
+        const sectionRes = await fetch("/api/fortune-section", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            section: sectionId,
+            data: fortuneData,
+            overview,
+          }),
+        });
+
+        if (!sectionRes.ok) {
+          const errJson = await sectionRes.json().catch(() => ({}));
+          const detail = [errJson.error, errJson.hint].filter(Boolean).join(" ");
+          throw new Error(detail || `${meta.title}の生成に失敗しました。`);
+        }
+
+        const sectionJson = await sectionRes.json();
+        fullReport += `\n\n${meta.title}\n\n${sectionJson.content}`;
+        setReport(fullReport);
+      }
+
+      setReportLoadingLabel(null);
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "ネットワークに接続できませんでした。");
+      setReportLoadingLabel(null);
     } finally {
       setLoading(false);
     }
@@ -433,7 +468,7 @@ export default function App() {
                 )}
                 <button
                   onClick={handleSynthesizeDestiny}
-                  disabled={loading}
+                  disabled={loading || !!reportLoadingLabel}
                   className="group relative cursor-pointer font-sans text-xs font-bold uppercase tracking-widest text-white px-8 py-4 bg-gradient-to-r from-natural-olive via-natural-olive to-natural-olive-dark hover:opacity-95 transition-all duration-300 rounded-xl shadow-md flex items-center gap-2"
                   id="btn-synthesize-main"
                 >
@@ -450,7 +485,7 @@ export default function App() {
                   )}
                 </button>
                 <p className="text-[10px] text-neutral-500 mt-2.5 font-sans">
-                  ※ 初回は簡易鑑定（約10秒以内）。より詳しい解説は相談ルームで深掘りできます。
+                  ※ 総合サマリーの後、各占術セクションを順次読み込みます（全体で約1分）。詳細は相談ルームでも深掘りできます。
                 </p>
               </div>
 
@@ -496,6 +531,7 @@ export default function App() {
                     onDownloadMarkdown={handleDownloadMarkdown}
                     onDownloadJson={handleDownloadJson}
                     profileName={profileNameInput || "鑑定"}
+                    reportLoadingLabel={reportLoadingLabel}
                   />
                 </>
               ) : (

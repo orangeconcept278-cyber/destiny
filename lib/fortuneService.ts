@@ -1,95 +1,177 @@
-import { buildRoadmapYearHeadings } from "./dateUtils.js";
-import { calculatePersonalYear } from "./personalYear.js";
-import { generateFortuneContent, generateWithFallback } from "./gemini.js";
+import {
+  FORTUNE_OVERVIEW_MAX_TOKENS,
+  FORTUNE_SECTION_MAX_TOKENS,
+  generateFortuneContent,
+  generateWithFallback,
+} from "./gemini.js";
+import { buildFortuneContext, parseFortuneInput } from "./fortuneData.js";
+import { FortuneSectionId, isFortuneSectionId } from "./fortuneSections.js";
 
-function summarizePastEvents(events?: { year: number; event: string }[]): string {
-  if (!events?.length) return "なし";
-  return events
-    .slice(0, 5)
-    .map((e) => `${e.year}:${e.event}`)
-    .join(" / ");
-}
-
-function summarizeFutureNotes(notes?: { year: number; memo: string }[]): string {
-  if (!notes?.length) return "なし";
-  return notes
-    .filter((n) => n.memo.trim())
-    .slice(0, 3)
-    .map((n) => `${n.year}:${n.memo}`)
-    .join(" / ");
-}
+const SECTION_STYLE = `
+各論点は「①結論→②根拠（パラメータ引用）→③処方」の順で書く。
+専門用語には括弧で短い説明を添える。推測は【推測】と明記。
+病気・死期の断定は禁止。日本語・1200〜1800字程度。
+`;
 
 export async function generateFortuneReport(body: Record<string, unknown>): Promise<string> {
-  const {
-    basicInfo,
-    western,
-    vedic,
-    fourPillars,
-    numerology,
-    pastEvents,
-    concerns,
-    questions,
-    futureYearNotes,
-  } = body as {
-    basicInfo?: { gender?: string; location?: string; birthDate?: string };
-    western?: Record<string, string>;
-    vedic?: Record<string, string>;
-    fourPillars?: Record<string, string>;
-    numerology?: Record<string, string>;
-    pastEvents?: { year: number; event: string }[];
-    concerns?: string;
-    questions?: string;
-    futureYearNotes?: { year: number; memo: string }[];
-  };
-
-  const currentYear = new Date().getFullYear();
-  const birthDate = basicInfo?.birthDate ?? "";
-  const roadmapHeadings = buildRoadmapYearHeadings(currentYear, 5);
-  const thisYearPy = birthDate ? calculatePersonalYear(birthDate, currentYear) : "?";
+  const input = parseFortuneInput(body);
+  const ctx = buildFortuneContext(input);
 
   const systemInstruction = `
-あなたは統合鑑定者です。西洋・インド・四柱・数秘を横断して簡易鑑定書を書きます。
-基準年は ${currentYear} 年。未来ロードマップは ${currentYear}〜${currentYear + 4} 年のみ。
-病気・死期の断定は禁止。出力は日本語・合計1200字以内・簡潔に。
-各セクションは短く。詳細な深掘りは相談ルームに委ねる前提です。
+あなたは統合鑑定者です。4占術を横断する総合鑑定の「冒頭サマリー」を書きます。
+基準年:${ctx.currentYear}年。出力は600〜900字。簡潔だが格調高く。
 `;
 
   const prompt = `
-【試作版・簡易統合鑑定書】以下のデータから、指定見出しどおりに簡潔な鑑定書を生成してください。
+【総合鑑定サマリー】以下データから、続く詳細セクションの導入となるサマリーを生成してください。
 
-冒頭に1行だけ「※本鑑定は試作版の簡易鑑定です。詳細は相談ルームで深掘りできます。」と書いてください。
+### 指定見出し
+## 統合鑑定サマリー
+（相談者の人生の主題を3〜4文で）
 
-## 指定見出し（この順・この名前で）
-### コアテーマ要約
-（4占術それぞれ1〜2文。専門用語には括弧で短い説明）
+### 四体系の要点（各1〜2文）
+- 西洋:
+- インド:
+- 四柱:
+- 数秘:
 
-### マルチ一致
-（2件まで。一致度:高/中 を明記）
+### いま最も意識すべきテーマ
+（2〜3文）
 
-### 答え合わせ
-（過去イベントが「なし」なら「未入力のため省略」。ある場合のみ各1行）
-
-### 未来時間割
-（次の見出しをそのまま使い、各年2〜3文）
-${roadmapHeadings}
-
-### 問いへの回答
-（相談者の問いに3〜5文で回答）
-
-【相談者】${basicInfo?.gender || "?"} / ${basicInfo?.location || "?"} / 生:${birthDate || "?"}
-【西洋】ASC:${western?.ascendant || "?"} MC:${western?.mc || "?"} ステリウム:${western?.stellium || "-"}
-【インド】ラグナ:${vedic?.lagna || "?"} ダシャー:${vedic?.dasha || "-"}
-【四柱】日主:${fourPillars?.dayMaster || "?"} 用神:${fourPillars?.usefulGod || "-"} 大運:${fourPillars?.major运 || "-"} 流年:${fourPillars?.year运 || "-"}
-【数秘】LP:${numerology?.lifePath || "?"} PY${currentYear}:${thisYearPy}
-【悩み】${concerns?.trim() || "なし"}
-【問い】${questions?.trim() || "なし"}
-【過去イベント】${summarizePastEvents(pastEvents)}
-【未来メモ】${summarizeFutureNotes(futureYearNotes)}
+【相談者】${ctx.basicBlock}
+【悩み】${ctx.concerns}
+【問い】${ctx.questions}
+【西洋要点】${ctx.westernBlock}
+【インド要点】${ctx.vedicBlock}
+【四柱要点】${ctx.baziBlock}
+【数秘要点】${ctx.numerologyBlock}
 `;
 
   const response = await generateFortuneContent({
     contents: prompt,
     systemInstruction,
+    maxOutputTokens: FORTUNE_OVERVIEW_MAX_TOKENS,
+  });
+
+  return response.text ?? "";
+}
+
+export async function generateFortuneSection(
+  section: FortuneSectionId,
+  body: Record<string, unknown>,
+  overview?: string
+): Promise<string> {
+  if (!isFortuneSectionId(section)) {
+    throw new Error(`INVALID_SECTION:${section}`);
+  }
+
+  const input = parseFortuneInput(body);
+  const ctx = buildFortuneContext(input);
+
+  const systemInstruction = `
+あなたは統合鑑定者です。今回は「${section}」パートのみを深く書きます。
+${SECTION_STYLE}
+基準年:${ctx.currentYear}年。
+`;
+
+  let prompt = "";
+
+  switch (section) {
+    case "western":
+      prompt = `
+【西洋占星術・詳細鑑定】トロピカル式。1200〜1800字。
+
+### 含める内容
+- ASC/MCの意味と人生への影響
+- ステリウム・アスペクト・ハウス配置の解釈
+- 強みと課題（各①②③形式）
+- 今年${ctx.currentYear}年の行動指針
+
+【データ】${ctx.basicBlock}
+${ctx.westernBlock}
+【悩み】${ctx.concerns}
+【問い】${ctx.questions}
+`;
+      break;
+    case "bazi":
+      prompt = `
+【四柱推命・詳細鑑定】1200〜1800字。
+
+### 含める内容
+- 日主の本質と格局
+- 調候用神・通変星・空亡の意味
+- 現在大運と${ctx.currentYear}年流年の読み
+- 仕事・対人の処方
+
+【データ】${ctx.basicBlock}
+${ctx.baziBlock}
+【悩み】${ctx.concerns}
+`;
+      break;
+    case "jyotish":
+      prompt = `
+【インド占星術（ジョーティシュ）・詳細鑑定】1200〜1800字。
+
+### 含める内容
+- ラグナとナクシャトラの本質
+- ヨーガ・シャドバラ・アシュタカヴァルガ
+- 現在のダシャー期の意味と過ごし方
+- カルマ的課題と処方
+
+【データ】${ctx.basicBlock}
+${ctx.vedicBlock}
+【悩み】${ctx.concerns}
+`;
+      break;
+    case "numerology":
+      prompt = `
+【数秘術・詳細鑑定】1200〜1800字。
+
+### 含める内容
+- ライフパス・表現数・ソウルナンバーの統合読み
+- ${ctx.currentYear}年パーソナルイヤー${ctx.thisYearPy}の意味
+- 9年サイクル上の現在地
+- 金運・仕事・関係性への示唆
+
+【データ】${ctx.basicBlock}
+${ctx.numerologyBlock}
+【問い】${ctx.questions}
+`;
+      break;
+    case "integration":
+      prompt = `
+【統合鑑定・マルチアライメント】1200〜1800字。
+
+### 含める内容
+1. 三重/二重一致（2〜3件、確信度付き）
+2. 答え合わせ（過去イベントがある場合）
+3. 未来時間割（次の見出しをそのまま使用、各年3〜4文）
+${ctx.roadmapHeadings}
+4. 相談者の問いへの統合回答
+
+【総合サマリー（整合すること）】
+${overview || "（なし）"}
+
+【全データ】
+${ctx.basicBlock}
+${ctx.westernBlock}
+${ctx.vedicBlock}
+${ctx.baziBlock}
+${ctx.numerologyBlock}
+【過去イベント】
+${ctx.pastEvents}
+【未来メモ】
+${ctx.futureNotes}
+【悩み】${ctx.concerns}
+【問い】${ctx.questions}
+`;
+      break;
+  }
+
+  const response = await generateFortuneContent({
+    contents: prompt,
+    systemInstruction,
+    maxOutputTokens: FORTUNE_SECTION_MAX_TOKENS,
   });
 
   return response.text ?? "";
@@ -104,12 +186,10 @@ export async function generateFortuneChat(body: Record<string, unknown>): Promis
   };
 
   const systemInstruction = `
-あなたは統合鑑定者です。相談者は簡易鑑定書を読んだうえで対話しています。
-詳細な深掘り・補足鑑定を担当してください。鑑定書と矛盾しないこと。
-各回答は「根拠（占術パラメータ）」と「具体的な処方」を短く示すこと。
-病気・医療・死期の予言は禁止。
+あなたは統合鑑定者です。相談者は分割生成された詳細鑑定書を読んだうえで対話しています。
+鑑定書と矛盾しないこと。各回答は根拠と処方を示すこと。病気・死期の予言は禁止。
 
-【簡易鑑定書】
+【鑑定書全文】
 ${report}
 
 【相談者データ】

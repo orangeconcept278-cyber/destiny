@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const report = await withFortuneTimeout(generateFortuneReport(req.body ?? {}));
-    return res.status(200).json({ report, mode: "brief" });
+    return res.status(200).json({ report, mode: "overview" });
   } catch (error) {
     console.error("Fortune generation error:", error);
     const { status, body } = toApiErrorResponse(error);

@@ -13,6 +13,7 @@ interface CounselingRoomProps {
   onDownloadMarkdown: () => void;
   onDownloadJson: () => void;
   profileName?: string;
+  reportLoadingLabel?: string | null;
 }
 
 export default function CounselingRoom({
@@ -23,6 +24,7 @@ export default function CounselingRoom({
   onDownloadMarkdown,
   onDownloadJson,
   profileName = "鑑定",
+  reportLoadingLabel = null,
 }: CounselingRoomProps) {
   const [input, setInput] = React.useState<string>("");
   const [loading, setLoading] = React.useState<boolean>(false);
@@ -205,6 +207,18 @@ export default function CounselingRoom({
           >
             {report}
           </ReactMarkdown>
+
+          {reportLoadingLabel && (
+            <div className="no-print mt-6 p-4 rounded-xl border border-natural-border bg-white shadow-sm flex items-center gap-3">
+              <Loader className="w-5 h-5 text-natural-olive animate-spin shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-natural-olive">{reportLoadingLabel}</p>
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  各占術を順番に深掘りしています。完了までしばらくお待ちください…
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

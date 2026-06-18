@@ -1,7 +1,7 @@
 import { ChatMessage } from "../types";
 
 export const WELCOME_CHAT_TEXT =
-  "簡易統合鑑定が完了しました。本鑑定は試作版の要点まとめです。各セクションの深掘り、時期の詳細、仕事・恋愛・金運については、この相談ルームで何でもご質問ください。詳細な解説をお届けします。";
+  "統合鑑定のサマリーと各占術セクションを順次構築しています。読み終えたら、気になる箇所や時期についてこのルームで深掘り質問してください。より具体的な解説をお届けします。";
 
 export function createWelcomeChatMessage(): ChatMessage {
   return {

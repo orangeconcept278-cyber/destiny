@@ -2,7 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-export const FORTUNE_MAX_OUTPUT_TOKENS = 1500;
+export const FORTUNE_OVERVIEW_MAX_TOKENS = 800;
+export const FORTUNE_SECTION_MAX_TOKENS = 2000;
 export const FORTUNE_TIMEOUT_MS = 9000;
 
 const FORTUNE_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"];
@@ -127,9 +128,11 @@ function getClient(): GoogleGenAI {
 export async function generateFortuneContent(options: {
   contents: string;
   systemInstruction: string;
+  maxOutputTokens?: number;
 }) {
   const ai = getClient();
   let lastError: unknown;
+  const maxOutputTokens = options.maxOutputTokens ?? FORTUNE_OVERVIEW_MAX_TOKENS;
 
   for (const model of FORTUNE_MODELS) {
     try {
@@ -138,11 +141,11 @@ export async function generateFortuneContent(options: {
         contents: options.contents,
         config: {
           systemInstruction: options.systemInstruction,
-          temperature: 0.4,
-          maxOutputTokens: FORTUNE_MAX_OUTPUT_TOKENS,
+          temperature: 0.45,
+          maxOutputTokens,
         },
       });
-      console.log(`[Gemini] 簡易鑑定成功: model=${model}`);
+      console.log(`[Gemini] 鑑定生成成功: model=${model} tokens=${maxOutputTokens}`);
       return response;
     } catch (error) {
       lastError = error;
