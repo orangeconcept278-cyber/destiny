@@ -14,6 +14,7 @@ import {
   SavedProfile,
 } from "./utils/profileStorage";
 import AstroChartEditor from "./components/AstroChartEditor";
+import PastEventsPanel from "./components/PastEventsPanel";
 import MultiAlignmentVisualizer from "./components/MultiAlignmentVisualizer";
 import TimelineMilestone from "./components/TimelineMilestone";
 import CounselingRoom from "./components/CounselingRoom";
@@ -382,6 +383,13 @@ export default function App() {
                   onResetToCalculated={handleResetToCalculated}
                 />
               </div>
+
+              <PastEventsPanel
+                events={fortuneData.pastEvents}
+                onChange={(events) =>
+                  setFortuneData((prev) => ({ ...prev, pastEvents: events }))
+                }
+              />
 
               {/* Inner states: Concerns and core questions */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-natural-border shadow-sm">

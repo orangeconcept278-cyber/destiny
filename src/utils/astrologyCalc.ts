@@ -277,10 +277,7 @@ export function generateInitialAstroData(
       soulNum: lp > 5 ? lp - 3 : lp + 4,
       personalYear: py,
     },
-    pastEvents: [
-      { id: "e1", year: 2018, event: "初めての就職・就労" },
-      { id: "e2", year: 2022, event: "転職、または生活拠点の大きな移転" },
-    ],
+    pastEvents: [],
     futureYearNotes: [],
     concerns: "仕事に集中すると家庭が疎かになり、葛藤を繰り返す。完璧主義に陥って身動きが取れなくなる癖がある。",
     questions: "今取り組んでいるキャリアの方向性は、自分の命式やダシャー期と合致しているでしょうか？3年以内に転機が来るタイミングを知りたいです。",
