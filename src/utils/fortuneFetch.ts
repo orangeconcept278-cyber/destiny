@@ -1,7 +1,7 @@
 import { fetchWithTimeout } from "./fetchWithTimeout";
 import { sleep } from "./sleep";
 
-const MAX_ATTEMPTS = 4;
+const DEFAULT_MAX_RETRIES = 3;
 const RETRYABLE_STATUSES = new Set([503, 429, 504]);
 
 const RETRYABLE_CODES = new Set([
@@ -13,6 +13,11 @@ const RETRYABLE_CODES = new Set([
 
 export const GEMINI_RETRY_MESSAGE = "Geminiが混雑しています。再試行中…";
 
+export interface FortuneFetchOptions {
+  /** 初回失敗後のリトライ回数。0 = リトライなし（1回だけ実行） */
+  maxRetries?: number;
+}
+
 function isRetryableResponse(status: number, code?: string): boolean {
   if (RETRYABLE_STATUSES.has(status)) return true;
   if (code && RETRYABLE_CODES.has(code)) return true;
@@ -22,11 +27,14 @@ function isRetryableResponse(status: number, code?: string): boolean {
 export async function fetchFortuneWithRetry(
   url: string,
   init: RequestInit,
-  onRetry?: (attempt: number) => void
+  onRetry?: (attempt: number) => void,
+  options?: FortuneFetchOptions
 ): Promise<Response> {
+  const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
+  const maxAttempts = 1 + maxRetries;
   let lastResponse: Response | null = null;
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const response = await fetchWithTimeout(url, init);
     if (response.ok) return response;
 
@@ -34,7 +42,7 @@ export async function fetchFortuneWithRetry(
     lastResponse = response;
 
     const retryable = isRetryableResponse(response.status, errJson.code);
-    if (!retryable || attempt === MAX_ATTEMPTS - 1) {
+    if (!retryable || attempt === maxAttempts - 1) {
       return response;
     }
 

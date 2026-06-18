@@ -21,11 +21,14 @@ async function startServer() {
   app.use(express.json());
 
   app.post("/api/fortune", async (req, res) => {
+    const callId = Date.now();
+    console.log(`[api/fortune] リクエスト受信`, { callId });
     try {
       const report = await withFortuneTimeout(generateFortuneReport(req.body));
+      console.log(`[api/fortune] 成功`, { callId });
       res.json({ report, mode: "overview" });
     } catch (error) {
-      console.error("Fortune generation error:", error);
+      console.error(`[api/fortune] 失敗`, { callId }, error);
       const { status, body } = toApiErrorResponse(error);
       res.status(status).json(body);
     }

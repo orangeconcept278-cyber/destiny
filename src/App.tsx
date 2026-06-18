@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AllFortuneData, PastEvent, ChatMessage } from "./types";
 import { generateInitialAstroData } from "./utils/astrologyCalc";
 import { createWelcomeChatMessage } from "./utils/chatUtils";
 import { downloadSessionMarkdown, downloadSessionJson } from "./utils/sessionExport";
 import { fetchFortuneWithRetry, GEMINI_RETRY_MESSAGE } from "./utils/fortuneFetch";
+import { fetchWithTimeout } from "./utils/fetchWithTimeout";
 import { buildFullReport, buildPriorSummaries, ReportTabId } from "./utils/buildReport";
 import {
   fortuneDataCacheKey,
@@ -61,7 +62,9 @@ export default function App() {
     );
   });
 
-  const [loading, setLoading] = useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const isGeneratingRef = useRef(false);
+  const fortuneApiCallSeqRef = useRef(0);
   const [overview, setOverview] = useState<string>("");
   const [sectionResults, setSectionResults] = useState<Partial<Record<FortuneSectionId, FortuneSectionResult>>>({});
   const [reportTab, setReportTab] = useState<ReportTabId>("overview");
@@ -257,7 +260,8 @@ export default function App() {
               priorSummaries: buildPriorSummaries(overview, sectionResults),
             }),
           },
-          () => setReportLoadingLabel(GEMINI_RETRY_MESSAGE)
+          () => setReportLoadingLabel(GEMINI_RETRY_MESSAGE),
+          { maxRetries: 3 }
         );
 
         if (!response.ok) {
@@ -296,8 +300,14 @@ export default function App() {
     [loadFortuneSection]
   );
 
-  const handleSynthesizeDestiny = async () => {
-    setLoading(true);
+  const handleStartFortune = async () => {
+    if (isGeneratingRef.current) {
+      console.warn("[fortune] 二重実行をブロックしました（isGenerating=true）");
+      return;
+    }
+
+    isGeneratingRef.current = true;
+    setIsGenerating(true);
     setErrorMsg("");
     setOverview("");
     setSectionResults({});
@@ -306,18 +316,22 @@ export default function App() {
     setChatHistory([]);
     clearCachedSession(cacheKey);
 
+    const callId = ++fortuneApiCallSeqRef.current;
+    console.log(`[fortune] POST /api/fortune 実行 #${callId}`, { timestamp: Date.now() });
+
     try {
       setReportLoadingLabel(FORTUNE_OVERVIEW_LOADING);
 
-      const response = await fetchFortuneWithRetry(
-        "/api/fortune",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fortuneData),
-        },
-        () => setReportLoadingLabel(GEMINI_RETRY_MESSAGE)
-      );
+      const response = await fetchWithTimeout("/api/fortune", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fortuneData),
+      });
+
+      console.log(`[fortune] POST /api/fortune 完了 #${callId}`, {
+        status: response.status,
+        ok: response.ok,
+      });
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
@@ -334,10 +348,11 @@ export default function App() {
       setActiveTab("report");
       setTimeout(() => scrollTo("tab-panels-viewport"), 80);
     } catch (err: unknown) {
-      console.error(err);
+      console.error(`[fortune] POST /api/fortune 失敗 #${callId}`, err);
       setErrorMsg(err instanceof Error ? err.message : "ネットワークに接続できませんでした。");
     } finally {
-      setLoading(false);
+      isGeneratingRef.current = false;
+      setIsGenerating(false);
       setReportLoadingLabel(null);
     }
   };
@@ -534,12 +549,13 @@ export default function App() {
                   </div>
                 )}
                 <button
-                  onClick={handleSynthesizeDestiny}
-                  disabled={loading || !!reportLoadingLabel}
-                  className="group relative cursor-pointer font-sans text-xs font-bold uppercase tracking-widest text-white px-8 py-4 bg-gradient-to-r from-natural-olive via-natural-olive to-natural-olive-dark hover:opacity-95 transition-all duration-300 rounded-xl shadow-md flex items-center gap-2"
+                  type="button"
+                  onClick={handleStartFortune}
+                  disabled={isGenerating}
+                  className="group relative cursor-pointer font-sans text-xs font-bold uppercase tracking-widest text-white px-8 py-4 bg-gradient-to-r from-natural-olive via-natural-olive to-natural-olive-dark hover:opacity-95 disabled:opacity-50 disabled:pointer-events-none transition-all duration-300 rounded-xl shadow-md flex items-center gap-2"
                   id="btn-synthesize-main"
                 >
-                  {loading ? (
+                  {isGenerating ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                       天体の軌道をアライメント中...
