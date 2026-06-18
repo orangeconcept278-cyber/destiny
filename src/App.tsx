@@ -418,7 +418,7 @@ export default function App() {
                     onChange={(e) => setFortuneData((prev) => ({ ...prev, questions: e.target.value }))}
                     rows={4}
                     className="w-full text-xs font-sans text-natural-text leading-relaxed p-4 bg-natural-light-cream/20 border border-natural-border focus:border-natural-olive rounded-xl focus:outline-none transition-all resize-none mt-2"
-                    placeholder="例: 現在進行中のプロジェクトは、自分の現在のマハーダシャー期や大運、数秘のパーソナルイヤーの運気と合致していますでしょうか？3年以内の転職、仕事の最良の独立時期を知りたいです。"
+                    placeholder="例: 今日から3年後までの運勢、金運、恋愛運"
                   />
                 </div>
               </div>

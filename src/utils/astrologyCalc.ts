@@ -279,7 +279,7 @@ export function generateInitialAstroData(
     },
     pastEvents: [],
     futureYearNotes: [],
-    concerns: "仕事に集中すると家庭が疎かになり、葛藤を繰り返す。完璧主義に陥って身動きが取れなくなる癖がある。",
-    questions: "今取り組んでいるキャリアの方向性は、自分の命式やダシャー期と合致しているでしょうか？3年以内に転機が来るタイミングを知りたいです。",
+    concerns: "",
+    questions: "今日から3年後までの運勢、金運、恋愛運",
   };
 }
